@@ -219,7 +219,70 @@
   min-height: 660px;
   width: 100%;
   z-index: 0;
+  position: relative;
+  overflow: hidden;
+  background: #dfe9e8;
+  background-image: linear-gradient(28deg, transparent 46%, #ffffff75 47%, #ffffff75 49%, transparent 50%), linear-gradient(-22deg, transparent 45%, #ffffff66 46%, #ffffff66 48%, transparent 49%);
+  background-size: 180px 140px, 220px 180px;
 }
+.map-grid-lines {
+  position: absolute;
+  inset: 0;
+  opacity: .48;
+  background-image: linear-gradient(#a8c4c033 1px, transparent 1px), linear-gradient(90deg, #a8c4c033 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+.map-title {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  z-index: 2;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #ffffffdd;
+  color: #536a72;
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+.map-pin {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.map-pin i {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 4px 10px #1d293344;
+  font-style: normal;
+  font-size: 8px;
+  color: #fff;
+}
+.map-pin i::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; }
+.map-pin span {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: #536a72;
+  font-size: 10px;
+}
+.route-pin i { background: #ee743c; }
+.store-pin i { width: 20px; height: 20px; background: #7895a2; border-width: 2px; }
+.store-pin i::after { width: 5px; height: 5px; }
+.origin-pin i { width: 30px; height: 30px; background: #1d2933; }
+.map-compass { position: absolute; right: 22px; top: 18px; z-index: 2; width: 28px; height: 28px; border-radius: 50%; background: #ffffffdd; color: #536a72; display: grid; place-items: center; font-weight: 700; font-size: 11px; }
+.map-note { position: absolute; right: 20px; bottom: 62px; z-index: 2; color: #6c7c83; background: #ffffffc7; padding: 5px 8px; border-radius: 4px; }
+.map-pin:focus-visible { outline: 3px solid #1d2933; outline-offset: 4px; }
 .map-legend {
   position: absolute;
   z-index: 1;

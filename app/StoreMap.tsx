@@ -1,8 +1,5 @@
 "use client";
 
-import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-
 export type MapStore = {
   id: string;
   name: string;
@@ -166,62 +163,35 @@ export default function StoreMap({
           ))}
         </aside>
         <div className="map-wrap">
-          <MapContainer
-            center={base}
-            zoom={12}
-            scrollWheelZoom
-            className="store-map"
-          >
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <CircleMarker
-              center={base}
-              radius={10}
-              pathOptions={{
-                color: "#ffffff",
-                weight: 3,
-                fillColor: "#1d2933",
-                fillOpacity: 1,
-              }}
-            >
-              <Popup>
-                销售驻点
-                <br />
-                杭州市中心
-              </Popup>
-            </CircleMarker>
+          <div className="store-map">
+            <div className="map-grid-lines" />
+            <div className="map-title">杭州 · 经销商门店分布</div>
+            <button className="map-pin origin-pin" style={{ left: "50%", top: "50%" }} onClick={() => undefined} aria-label="销售驻点">
+              <i />
+              <span>销售驻点</span>
+            </button>
             {stores.map((store) => {
               const p = pointFor(store),
                 item = route.find((r) => r.store.id === store.id),
                 rank = route.findIndex((r) => r.store.id === store.id);
+              const left = `${Math.max(8, Math.min(92, 50 + (p[1] - base[1]) * 260))}%`;
+              const top = `${Math.max(10, Math.min(90, 50 - (p[0] - base[0]) * 260))}%`;
               return (
-                <CircleMarker
+                <button
                   key={store.id}
-                  center={p}
-                  radius={item ? 13 : 8}
-                  pathOptions={{
-                    color: "#fff",
-                    weight: 2,
-                    fillColor: item ? "#ee743c" : "#7b9bb0",
-                    fillOpacity: 1,
-                  }}
-                  eventHandlers={{ click: () => onChoose(store.id) }}
+                  className={`map-pin ${item ? "route-pin" : "store-pin"}`}
+                  style={{ left, top }}
+                  onClick={() => onChoose(store.id)}
+                  aria-label={`选择 ${store.name}`}
                 >
-                  <Popup>
-                    <b>{store.name}</b>
-                    <br />
-                    {store.region} · {store.dealer}
-                    <br />
-                    {item
-                      ? `推荐第 ${rank + 1} 站 · ${item.distance.toFixed(1)} km`
-                      : "非本轮推荐"}
-                  </Popup>
-                </CircleMarker>
+                  <i>{item ? String(rank + 1).padStart(2, "0") : ""}</i>
+                  <span>{store.name}</span>
+                </button>
               );
             })}
-          </MapContainer>
+            <div className="map-compass">N</div>
+            <small className="map-note">点位按门店区域近似展示</small>
+          </div>
           <div className="map-legend">
             <span>
               <i className="origin-dot" />
