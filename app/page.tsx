@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 type Store = {
@@ -30,6 +30,17 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [section, setSection] = useState("总览");
   const [editing, setEditing] = useState<Store | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("landun-stores");
+      if (saved) setStores(JSON.parse(saved));
+    } catch { /* ignore malformed local data */ }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("landun-stores", JSON.stringify(stores));
+  }, [stores]);
 
   const filtered = useMemo(() => stores.filter((s) => `${s.name}${s.city}${s.dealer}${s.products.join("")}`.toLowerCase().includes(query.toLowerCase())), [stores, query]);
   const selected = filtered[activeStore] ?? filtered[0] ?? stores[0];
