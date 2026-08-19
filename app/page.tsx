@@ -3,129 +3,46 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
-type Store = {
-  id?: string;
-  name: string;
-  city: string;
-  dealer: string;
-  contact: string;
-  lastVisit: string;
-  products: string[];
-  health: "正常" | "待跟进";
-};
-
-const initialStores: Store[] = [
-  { name: "宏达建材·城南店", city: "杭州 · 上城区", dealer: "杭州新材贸易", contact: "王建国", lastVisit: "今天 09:42", products: ["堵漏王", "K11 防水浆料", "JS 聚合物", "高弹防水涂料"], health: "正常" },
-  { name: "家家乐防水专营店", city: "宁波 · 鄞州区", dealer: "宁波甬城代理", contact: "周晓梅", lastVisit: "昨天 16:18", products: ["彩色防水涂料", "瓷砖胶", "堵漏王"], health: "待跟进" },
-  { name: "老李装饰材料", city: "嘉兴 · 南湖区", dealer: "嘉兴恒盛建材", contact: "李海峰", lastVisit: "8 月 16 日", products: ["K11 防水浆料", "JS 聚合物"], health: "正常" },
-  { name: "安心防水材料店", city: "绍兴 · 越城区", dealer: "绍兴越达贸易", contact: "陈芳", lastVisit: "8 月 15 日", products: ["高弹防水涂料", "堵漏王", "彩色防水涂料", "瓷砖胶"], health: "正常" },
+type Store = { id: string; name: string; region: string; dealer: string; owner: string; level: string; products: string[]; visit: string; status: "正常" | "待跟进" };
+const seed: Store[] = [
+  { id: "MD001", name: "东区防水建材门店001", region: "东区", dealer: "杭州新材贸易", owner: "王晨", level: "S", products: ["A产品", "B产品", "E产品", "I产品"], visit: "今天 09:42", status: "正常" },
+  { id: "MD002", name: "南区防水建材门店002", region: "南区", dealer: "宁波甬城代理", owner: "李杰", level: "S", products: ["B产品", "C产品", "E产品", "I产品"], visit: "昨天 16:18", status: "待跟进" },
+  { id: "MD003", name: "西区防水建材门店003", region: "西区", dealer: "嘉兴恒盛建材", owner: "赵一鸣", level: "A", products: ["A产品", "D产品", "F产品"], visit: "8 月 16 日", status: "正常" },
+  { id: "MD004", name: "北区防水建材门店004", region: "北区", dealer: "绍兴越达贸易", owner: "陈浩", level: "A", products: ["C产品", "G产品", "J产品", "K产品"], visit: "8 月 15 日", status: "正常" },
 ];
 
-const productColors: Record<string, string> = { "堵漏王": "orange", "K11 防水浆料": "blue", "JS 聚合物": "violet", "高弹防水涂料": "green", "彩色防水涂料": "pink", "瓷砖胶": "yellow" };
-
 export default function Home() {
-  const [stores, setStores] = useState(initialStores);
+  const [stores, setStores] = useState<Store[]>(seed);
+  const [activeId, setActiveId] = useState("MD001");
+  const [nav, setNav] = useState("门店档案");
   const [query, setQuery] = useState("");
-  const [activeStore, setActiveStore] = useState(0);
-  const [toast, setToast] = useState("");
-  const [section, setSection] = useState("总览");
   const [editing, setEditing] = useState<Store | null>(null);
+  const [notice, setNotice] = useState("");
+  useEffect(() => { const raw = localStorage.getItem("landun-stores-v2"); if (raw) setStores(JSON.parse(raw)); }, []);
+  useEffect(() => { localStorage.setItem("landun-stores-v2", JSON.stringify(stores)); }, [stores]);
+  const filtered = useMemo(() => stores.filter(s => `${s.id}${s.name}${s.region}${s.dealer}${s.products.join("")}`.toLowerCase().includes(query.toLowerCase())), [stores, query]);
+  const active = stores.find(s => s.id === activeId) || filtered[0] || stores[0];
+  const toast = (msg: string) => { setNotice(msg); window.setTimeout(() => setNotice(""), 2800); };
 
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem("landun-stores");
-      if (saved) setStores(JSON.parse(saved));
-    } catch { /* ignore malformed local data */ }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem("landun-stores", JSON.stringify(stores));
-  }, [stores]);
-
-  const filtered = useMemo(() => stores.filter((s) => `${s.name}${s.city}${s.dealer}${s.products.join("")}`.toLowerCase().includes(query.toLowerCase())), [stores, query]);
-  const selected = filtered[activeStore] ?? filtered[0] ?? stores[0];
-
-  function importList(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
+  function importFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader(); reader.onload = ev => {
       try {
-        const workbook = XLSX.read(event.target?.result, { type: "array", cellDates: true });
-        const sheetName = workbook.SheetNames.includes("出货明细") ? "出货明细" : workbook.SheetNames[0];
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" });
-        const grouped = new Map<string, Store>();
-        rows.forEach((row) => {
-          const id = String(row["门店编号"] || row["门店ID"] || row["门店名称"] || "").trim();
-          const name = String(row["门店名称"] || row["客户名称"] || id || "未命名门店").trim();
-          if (!id && !name) return;
-          const store = grouped.get(id || name) || { id, name, city: String(row["区域"] || "待补充区域"), dealer: String(row["代理商"] || row["经销商"] || "未关联代理商"), contact: String(row["老板"] || row["负责人"] || "待补充"), lastVisit: "尚未拜访", products: [], health: "正常" };
-          const product = String(row["产品名称"] || row["产品"] || row["产品代码"] || "").trim();
-          if (product && !store.products.includes(product)) store.products.push(product);
-          if (row["业务员"] && store.contact === "待补充") store.contact = String(row["业务员"]);
-          grouped.set(id || name, store);
-        });
-        if (grouped.size) {
-          setStores(Array.from(grouped.values()));
-          setActiveStore(0);
-          setSection("门店档案");
-          setToast(`已导入「${file.name}」：${grouped.size} 家门店，按产品自动归类`);
-        } else throw new Error("没有识别到门店");
-      } catch {
-        setToast("导入失败，请确认文件包含“出货明细”页和门店/产品列");
-      }
-      setTimeout(() => setToast(""), 3500);
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = "";
+        const wb = XLSX.read(ev.target?.result, { type: "array", cellDates: true });
+        const name = wb.SheetNames.includes("出货明细") ? "出货明细" : wb.SheetNames[0];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[name], { defval: "" }); const map = new Map<string, Store>();
+        rows.forEach(r => { const id = String(r["门店编号"] || r["门店ID"] || r["门店名称"] || ""); const store = map.get(id) || { id, name: String(r["门店名称"] || "未命名门店"), region: String(r["区域"] || "待补充"), dealer: String(r["代理商"] || r["经销商"] || "未关联代理商"), owner: String(r["业务员"] || r["负责人"] || "待补充"), level: String(r["门店等级"] || r["等级"] || "-"), products: [], visit: "尚未拜访", status: "正常" as const }; const product = String(r["产品名称"] || r["产品代码"] || ""); if (product && !store.products.includes(product)) store.products.push(product); map.set(id, store); });
+        const next = [...map.values()]; if (!next.length) throw new Error(); setStores(next); setActiveId(next[0].id); setNav("门店档案"); toast(`已导入 ${next.length} 家门店的产品清单`);
+      } catch { toast("导入失败：请确认文件含有“出货明细”页"); }
+    }; reader.readAsArrayBuffer(file); e.target.value = "";
   }
+  function saveEdit() { if (!editing) return; setStores(prev => prev.map(s => s.id === editing.id ? editing : s)); setEditing(null); toast("门店资料已保存"); }
+  function addStore() { const s: Store = { id: `NEW${stores.length + 1}`, name: "新建门店", region: "待补充区域", dealer: "待关联代理商", owner: "待填写", level: "A", products: [], visit: "尚未拜访", status: "待跟进" }; setStores([s, ...stores]); setActiveId(s.id); setEditing(s); }
 
-  function addStore() {
-    setStores((prev) => [{ name: "新门店（待完善）", city: "待填写地区", dealer: "待关联代理商", contact: "待填写", lastVisit: "尚未拜访", products: [], health: "待跟进" }, ...prev]);
-    setActiveStore(0);
-    setToast("已新建门店，请在右侧补充资料");
-    setTimeout(() => setToast(""), 2800);
-  }
-
-  function saveStore() {
-    if (!editing) return;
-    setStores((prev) => prev.map((store) => store.name === editing.name ? editing : store));
-    setEditing(null);
-    setToast("门店资料已保存");
-    setTimeout(() => setToast(""), 2400);
-  }
-
-  function addProduct() {
-    const value = window.prompt("请输入产品名称");
-    if (!value?.trim() || !selected) return;
-    const next = { ...selected, products: [...selected.products, value.trim()] };
-    setStores((prev) => prev.map((store) => store.name === selected.name ? next : store));
-  }
-
-  return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">防</div><div><strong>澜盾防水</strong><span>经销商工作台</span></div></div>
-        <div className="nav-label">工作台</div>
-        {["总览", "门店档案", "订单导入", "拜访记录"].map((item) => <button key={item} onClick={() => setSection(item)} className={`nav-item ${section === item ? "active" : ""}`}><span className="nav-dot">{item === "总览" ? "⌂" : item === "门店档案" ? "▦" : item === "订单导入" ? "↥" : "✓"}</span>{item}{item === "订单导入" && <span className="nav-badge">3</span>}</button>)}
-        <div className="sidebar-spacer" />
-        <div className="sync-card"><span className="sync-dot" />数据已同步<span className="sync-time">刚刚</span></div>
-        <div className="user-card"><div className="avatar">林</div><div><strong>林晓峰</strong><span>销售主管</span></div><span className="more">•••</span></div>
-      </aside>
-
-      <section className="content">
-        <header className="topbar"><div><p className="eyebrow">周三 · 2026 年 8 月 19 日</p><h1>{section}</h1></div><div className="top-actions"><button className="icon-btn" aria-label="通知">♧<i /></button><button className="help-btn">?</button><button className="primary-btn" onClick={addStore}>＋ 新建门店</button></div></header>
-        <div className="content-body">
-          <div className="stats-grid"><div className="stat-card"><span>门店总数</span><strong>{stores.length}</strong><small className="up">↗ 12.5% <em>较上月</em></small><div className="spark orange-spark" /></div><div className="stat-card"><span>本月已铺货</span><strong>¥ 286,450</strong><small className="up">↗ 8.2% <em>较上月</em></small><div className="spark blue-spark" /></div><div className="stat-card"><span>待跟进门店</span><strong>6</strong><small className="down">↘ 2 家 <em>较上周</em></small><div className="spark purple-spark" /></div><div className="stat-card accent-stat"><span>本月拜访</span><strong>42 <small>/ 48</small></strong><small className="up">完成率 87.5%</small><div className="progress"><i /></div></div></div>
-
-          {section === "总览" || section === "门店档案" ? <><div className="section-head"><div><h2>门店货品台账</h2><p>从代理商订单中同步，快速掌握每家门店的在售产品</p></div><label className="upload-btn">↥ 导入订单清单<input type="file" accept=".csv,.xlsx,.xls" onChange={importList} /></label></div>
-          <div className="ledger-layout"><div className="store-list card"><div className="list-toolbar"><div className="search"><span>⌕</span><input value={query} onChange={(e) => { setQuery(e.target.value); setActiveStore(0); }} placeholder="搜索门店、代理商或产品" /></div><button className="filter-btn">≡ 筛选</button></div><div className="list-meta"><span>全部门店 <b>{filtered.length}</b></span><span className="sort">最近拜访　⌄</span></div><div className="rows">{filtered.map((store, i) => <button key={store.name} onClick={() => setActiveStore(i)} className={`store-row ${selected?.name === store.name ? "selected" : ""}`}><div className="store-icon">{store.name.slice(0, 1)}</div><div className="store-main"><strong>{store.name}</strong><span>{store.city}</span></div><div className="store-products"><div>{store.products.slice(0, 3).map((p) => <em key={p} className={productColors[p] || "gray"}>{p}</em>)}{store.products.length > 3 && <em className="more-pill">+{store.products.length - 3}</em>}</div><small>共 {store.products.length} 个产品</small></div><div className={`status ${store.health === "正常" ? "ok" : "warn"}`}>{store.health}</div><span className="chevron">›</span></button>)}</div></div>
-            <div className="detail card"><div className="detail-top"><div><span className="detail-kicker">门店详情 {selected.id && `· ${selected.id}`}</span><h2>{selected.name}</h2><p>{selected.city}　·　{selected.dealer}</p></div><button className="ghost-btn" onClick={() => setEditing({ ...selected })}>编辑资料　✎</button></div><div className="owner"><div className="owner-avatar">{selected.contact.slice(0, 1)}</div><div><span>负责人</span><strong>{selected.contact}</strong></div><div className="visit"><span>最近拜访</span><strong>{selected.lastVisit}</strong></div></div><div className="detail-section"><div className="detail-title"><h3>在售产品 <b>{selected.products.length}</b></h3><button className="text-btn" onClick={addProduct}>＋ 添加产品</button></div><div className="product-grid">{selected.products.map((p, i) => <div className="product-card" key={p}><div className={`product-thumb ${productColors[p] || "gray"}`}><span>{["堵", "K", "JS", "弹", "彩", "瓷"][i % 6]}</span></div><div><strong>{p}</strong><span>已铺货 · {i % 2 === 0 ? "常规装" : "工程装"}</span></div><button onClick={() => setStores((prev) => prev.map((store) => store.name === selected.name ? { ...store, products: store.products.filter((x) => x !== p) } : store))}>×</button></div>)}{selected.products.length === 0 && <div className="empty-products">暂无产品记录<br /><small>可从订单清单导入或手动添加</small></div>}</div></div><div className="detail-footer"><div><span>最后更新</span><strong>今天 09:42 · 林晓峰</strong></div><button className="visit-btn">✓ 记录本次拜访</button></div></div></div></> : <div className="placeholder-page card"><div className="placeholder-icon">{section === "订单导入" ? "↥" : section === "拜访记录" ? "✓" : "▦"}</div><h2>{section}</h2><p>{section === "订单导入" ? "上传代理商出货表，系统会从“出货明细”页自动识别门店与产品。" : section === "拜访记录" ? "这里将集中展示销售人员的门店拜访记录和照片。" : "这里集中管理全部门店档案，点击左侧门店即可编辑资料。"}</p>{section === "订单导入" && <label className="upload-btn">选择出货表<input type="file" accept=".csv,.xlsx,.xls" onChange={importList} /></label>}</div>}
-          <div className="bottom-note"><span>⌁</span><div><strong>订单导入小贴士</strong><p>支持 Excel / CSV 格式。系统会自动按“门店名称”归类产品，重复门店将合并更新。</p></div><button className="download-btn">下载模板　↧</button></div>
-        </div>
-      </section>
-      {toast && <div className="toast">✓　{toast}</div>}
-      {editing && <div className="modal-backdrop" onClick={() => setEditing(null)}><div className="edit-modal" onClick={(e) => e.stopPropagation()}><div className="modal-head"><div><span className="detail-kicker">编辑门店资料</span><h2>{editing.name}</h2></div><button className="close-btn" onClick={() => setEditing(null)}>×</button></div><label>门店名称<input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></label><div className="form-grid"><label>所在区域<input value={editing.city} onChange={(e) => setEditing({ ...editing, city: e.target.value })} /></label><label>代理商<input value={editing.dealer} onChange={(e) => setEditing({ ...editing, dealer: e.target.value })} /></label><label>负责人<input value={editing.contact} onChange={(e) => setEditing({ ...editing, contact: e.target.value })} /></label><label>状态<select value={editing.health} onChange={(e) => setEditing({ ...editing, health: e.target.value as Store["health"] })}><option>正常</option><option>待跟进</option></select></label></div><label>在售产品（用逗号分隔）<textarea value={editing.products.join("，")} onChange={(e) => setEditing({ ...editing, products: e.target.value.split(/[，,]/).map((x) => x.trim()).filter(Boolean) })} /></label><div className="modal-actions"><button className="cancel-btn" onClick={() => setEditing(null)}>取消</button><button className="primary-btn" onClick={saveStore}>保存修改</button></div></div></div>}
-    </main>
-  );
+  return <main className="shell">
+    <aside className="side"><div className="logo"><span>澜</span><div><b>澜盾防水</b><small>经销商工作台</small></div></div><div className="side-title">工作台</div>{["总览", "门店档案", "订单导入", "拜访记录"].map(item => <button className={`nav ${nav === item ? "on" : ""}`} key={item} onClick={() => setNav(item)}><i>{item === "总览" ? "⌂" : item === "门店档案" ? "▦" : item === "订单导入" ? "↥" : "✓"}</i>{item}{item === "订单导入" && <em>导入</em>}</button>)}<div className="side-bottom"><div className="online"><i /> 数据已同步</div><div className="profile"><span>林</span><div><b>林晓峰</b><small>销售主管</small></div></div></div></aside>
+    <section className="main"><header className="header"><div><small>2026 年 8 月 19 日 · 星期三</small><h1>{nav}</h1></div><div className="header-actions"><button className="outline" onClick={() => document.getElementById("file-input")?.click()}>↥ 导入出货表</button><input id="file-input" hidden type="file" accept=".xlsx,.xls,.csv" onChange={importFile} /><button className="solid" onClick={addStore}>＋ 新建门店</button></div></header>
+      {nav === "门店档案" || nav === "总览" ? <div className="page"><div className="summary"><div><small>门店总数</small><strong>{stores.length}</strong><span>家门店已建立档案</span></div><div><small>已记录产品</small><strong>{new Set(stores.flatMap(s => s.products)).size}</strong><span>个不同产品</span></div><div><small>待跟进</small><strong className="orange-text">{stores.filter(s => s.status === "待跟进").length}</strong><span>家需要回访</span></div><div><small>本月导入</small><strong>2,468</strong><span>条出货明细</span></div></div><div className="workspace"><div className="list-panel"><div className="panel-head"><div><h2>门店货品台账</h2><p>每家门店卖什么，一眼看清</p></div><label className="mini-upload">导入清单<input type="file" accept=".xlsx,.xls,.csv" onChange={importFile} /></label></div><div className="search-row"><div className="search">⌕<input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索门店、编号、代理商或产品" /></div><button className="filter">筛选　⌄</button></div><div className="count">全部门店 <b>{filtered.length}</b><span>按最近拜访排序　⌄</span></div><div className="store-list">{filtered.map(s => <button className={`store ${active?.id === s.id ? "selected" : ""}`} key={s.id} onClick={() => setActiveId(s.id)}><span className="store-badge">{s.name.slice(0, 1)}</span><span className="store-name"><b>{s.name}</b><small>{s.id} · {s.region}</small></span><span className="product-tags">{s.products.slice(0, 3).map(p => <em key={p}>{p}</em>)}{s.products.length > 3 && <em>+{s.products.length - 3}</em>}<small>{s.products.length} 个产品</small></span><span className={`state ${s.status === "正常" ? "good" : "wait"}`}>{s.status}</span><strong className="arrow">›</strong></button>)}</div></div>
+          {active && <div className="detail-panel"><div className="detail-header"><div><small>门店档案 · {active.id}</small><h2>{active.name}</h2><p>{active.region}　/　{active.dealer}</p></div><button className="edit" onClick={() => setEditing({ ...active })}>编辑资料　✎</button></div><div className="owner"><span>{active.owner.slice(0, 1)}</span><div><small>负责人 / 业务员</small><b>{active.owner}</b></div><div className="last"><small>最近拜访</small><b>{active.visit}</b></div></div><div className="products-head"><h3>已铺产品 <b>{active.products.length}</b></h3><button onClick={() => { const v = window.prompt("新增产品名称"); if (v) setStores(prev => prev.map(s => s.id === active.id ? { ...s, products: [...s.products, v] } : s)); }}>＋ 添加产品</button></div><div className="products">{active.products.map((p, i) => <div className="product" key={p}><span className={`product-icon c${i % 5}`}>{p.slice(0, 1)}</span><div><b>{p}</b><small>来自出货明细 · 已记录</small></div><button onClick={() => setStores(prev => prev.map(s => s.id === active.id ? { ...s, products: s.products.filter(x => x !== p) } : s))}>×</button></div>)}{!active.products.length && <div className="empty">暂无产品，可从出货表导入或手动添加</div>}</div><div className="detail-bottom"><span>门店等级 <b>{active.level}</b></span><button className="visit-btn">✓ 记录本次拜访</button></div></div>}</div></div> : <div className="empty-page"><div>{nav === "订单导入" ? "↥" : "✓"}</div><h2>{nav}</h2><p>{nav === "订单导入" ? "上传代理商出货表，系统将自动按门店归类产品。" : "这里用于集中管理销售人员的拜访记录。"}</p>{nav === "订单导入" && <label className="solid import-big">选择出货表<input type="file" accept=".xlsx,.xls,.csv" onChange={importFile} /></label>}</div>}
+    </section>{editing && <div className="backdrop" onClick={() => setEditing(null)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-top"><div><small>编辑门店档案</small><h2>{editing.name}</h2></div><button onClick={() => setEditing(null)}>×</button></div><label>门店名称<input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} /></label><div className="grid"><label>门店编号<input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value })} /></label><label>区域<input value={editing.region} onChange={e => setEditing({ ...editing, region: e.target.value })} /></label><label>代理商<input value={editing.dealer} onChange={e => setEditing({ ...editing, dealer: e.target.value })} /></label><label>负责人<input value={editing.owner} onChange={e => setEditing({ ...editing, owner: e.target.value })} /></label></div><label>在售产品（逗号分隔）<textarea value={editing.products.join("，")} onChange={e => setEditing({ ...editing, products: e.target.value.split(/[，,]/).map(x => x.trim()).filter(Boolean) })} /></label><div className="modal-actions"><button onClick={() => setEditing(null)}>取消</button><button className="solid" onClick={saveEdit}>保存修改</button></div></div></div>}{notice && <div className="notice">✓　{notice}</div>}</main>;
 }
