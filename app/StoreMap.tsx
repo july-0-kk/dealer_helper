@@ -27,6 +27,7 @@ export type RouteItem = {
 };
 
 const base: [number, number] = [30.252, 120.165];
+const BAIDU_MAP_AK = "l5FhlKxJus8GU5Vjv7zhHfkzOAFIeIqw";
 const regionCenters: Record<string, [number, number]> = {
   东区: [30.275, 120.235],
   南区: [30.184, 120.152],
@@ -127,12 +128,13 @@ function BaiduLayer({
   onReady: (ready: boolean) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const [ak, setAk] = useState("");
+  const [ak, setAk] = useState(BAIDU_MAP_AK);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 
   useEffect(() => {
-    setAk(localStorage.getItem("landun-baidu-map-ak") || "");
+    localStorage.setItem("landun-baidu-map-ak", BAIDU_MAP_AK);
+    setAk(BAIDU_MAP_AK);
   }, []);
   useEffect(() => {
     if (!ak || !host.current) {
