@@ -13,6 +13,9 @@ type Store = {
   products: string[];
   visit: string;
   status: "正常" | "待跟进";
+  address?: string;
+  lat?: number;
+  lng?: number;
 };
 type Visit = {
   id: string;
@@ -131,6 +134,9 @@ export default function Home() {
             products: [],
             visit: "尚未拜访",
             status: "正常",
+            address: String(r["地址"] || r["门店地址"] || ""),
+            lat: Number(r["纬度"] || r["Latitude"] || 0) || undefined,
+            lng: Number(r["经度"] || r["Longitude"] || 0) || undefined,
           };
           const p = String(r["产品名称"] || r["产品代码"] || "");
           if (p && !s.products.includes(p)) s.products.push(p);
@@ -365,6 +371,8 @@ export default function Home() {
                 <label>
                   最近拜访<strong>{active.visit}</strong>
                 </label>
+                <label className="location-v3">
+                  门店位置<strong>{active.address || "尚未填写地址"}</strong><small>{active.lat && active.lng ? `${active.lat.toFixed(6)}, ${active.lng.toFixed(6)}` : "可在门店地图中拖动标记定位"}</small></label>
               </div>
               <div className="section-v3">
                 <div>
@@ -509,6 +517,14 @@ export default function Home() {
                 }
               />
             </label>
+            <label>
+              门店地址
+              <input value={editing.address || ""} placeholder="填写详细地址" onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
+            </label>
+            <div className="form-v3">
+              <label>纬度<input type="number" step="0.000001" value={editing.lat ?? ""} onChange={(e) => setEditing({ ...editing, lat: Number(e.target.value) })} /></label>
+              <label>经度<input type="number" step="0.000001" value={editing.lng ?? ""} onChange={(e) => setEditing({ ...editing, lng: Number(e.target.value) })} /></label>
+            </div>
             <div className="modal-v3-actions">
               <button onClick={() => setEditing(null)}>取消</button>
               <button onClick={save}>保存修改</button>
