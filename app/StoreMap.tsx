@@ -129,6 +129,7 @@ function BaiduLayer({
   const host = useRef<HTMLDivElement>(null);
   const [ak, setAk] = useState("");
   const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 
   useEffect(() => {
     setAk(localStorage.getItem("landun-baidu-map-ak") || "");
@@ -139,37 +140,42 @@ function BaiduLayer({
       return;
     }
     let cancelled = false;
+    setStatus("loading");
     const draw = () => {
-      if (cancelled || !host.current || !window.BMapGL) return;
-      host.current.innerHTML = "";
-      const B = window.BMapGL;
-      const map = new B.Map(host.current);
-      map.centerAndZoom(new B.Point(base[1], base[0]), 12);
-      map.enableScrollWheelZoom(true);
-      const origin = new B.Point(base[1], base[0]);
-      map.addOverlay(new B.Marker(origin));
-      const routePoints = [origin];
-      stores.forEach((store) => {
-        const p = pointFor(store), point = new B.Point(p[1], p[0]);
-        const item = route.find((r) => r.store.id === store.id);
-        const marker = new B.Marker(point);
-        map.addOverlay(marker);
-        marker.addEventListener("click", () => onChoose(store.id));
-        if (item) routePoints.push(point);
-      });
-      if (routePoints.length > 1) {
-        map.addOverlay(new B.Polyline(routePoints, { strokeColor: "#ee743c", strokeWeight: 3, strokeOpacity: 0.75 }));
+      try {
+        if (cancelled || !host.current || !window.BMapGL) throw new Error("API unavailable");
+        host.current.innerHTML = "";
+        const B = window.BMapGL;
+        const map = new B.Map(host.current);
+        map.centerAndZoom(new B.Point(base[1], base[0]), 12);
+        map.enableScrollWheelZoom(true);
+        const origin = new B.Point(base[1], base[0]);
+        map.addOverlay(new B.Marker(origin));
+        const routePoints = [origin];
+        stores.forEach((store) => {
+          const p = pointFor(store), point = new B.Point(p[1], p[0]);
+          const item = route.find((r) => r.store.id === store.id);
+          const marker = new B.Marker(point);
+          map.addOverlay(marker);
+          marker.addEventListener("click", () => onChoose(store.id));
+          if (item) routePoints.push(point);
+        });
+        if (routePoints.length > 1) map.addOverlay(new B.Polyline(routePoints, { strokeColor: "#ee743c", strokeWeight: 3, strokeOpacity: 0.75 }));
+        onReady(true);
+      } catch {
+        setStatus("error");
+        onReady(false);
       }
-      onReady(true);
     };
     if (window.BMapGL) draw();
     else {
-      const existing = document.querySelector('script[data-landun-baidu="true"]');
-      const script = existing || document.createElement("script");
+      document.querySelector('script[data-landun-baidu="true"]')?.remove();
+      const script = document.createElement("script");
       script.setAttribute("data-landun-baidu", "true");
       script.setAttribute("src", `https://api.map.baidu.com/api?type=webgl&v=4.0&ak=${encodeURIComponent(ak)}`);
       script.addEventListener("load", draw, { once: true });
-      if (!existing) document.body.appendChild(script);
+      script.addEventListener("error", () => { setStatus("error"); onReady(false); }, { once: true });
+      document.body.appendChild(script);
     }
     return () => {
       cancelled = true;
@@ -185,7 +191,7 @@ function BaiduLayer({
   }
   return (
     <>
-      <div ref={host} className="baidu-layer" />
+      <div ref={host} className={`baidu-layer ${ak ? "visible" : ""}`} />
       {!ak && (
         <div className="baidu-ak-panel">
           <b>启用百度地图</b>
@@ -193,6 +199,9 @@ function BaiduLayer({
           <div><input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="粘贴百度地图 AK" /><button onClick={saveAk}>启用</button></div>
           <a href="https://lbsyun.baidu.com/" target="_blank" rel="noreferrer">前往百度地图开放平台申请 AK ↗</a>
         </div>
+      )}
+      {ak && status !== "loading" && status !== "idle" && (
+        <div className="baidu-error">百度地图没有加载成功。请确认 AK 类型为“浏览器端”，并已将 <b>landun-dealer-workbench.july-0.chatgpt.site</b> 加入 Referer 白名单；修改后刷新本页再试。</div>
       )}
     </>
   );

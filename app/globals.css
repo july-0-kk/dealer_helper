@@ -219,8 +219,10 @@
   inset: 0;
   z-index: 4;
   min-height: 660px;
+  display: none;
   background: #dfe9e8;
 }
+.baidu-layer.visible { display: block; }
 .baidu-active > .store-map { opacity: 0; pointer-events: none; }
 .baidu-ak-panel {
   position: absolute;
@@ -240,6 +242,7 @@
 .baidu-ak-panel input { min-width: 0; flex: 1; border: 1px solid #d5dfe1; border-radius: 5px; padding: 8px 9px; font-size: 12px; }
 .baidu-ak-panel button { border: 0; border-radius: 5px; padding: 0 13px; background: #ee743c; color: white; cursor: pointer; }
 .baidu-ak-panel a { display: inline-block; margin-top: 10px; color: #ee743c; font-size: 11px; text-decoration: none; }
+.baidu-error { position: absolute; z-index: 7; left: 24px; bottom: 68px; width: min(390px, calc(100% - 48px)); padding: 13px 15px; border-radius: 8px; background: #fff6f0; border: 1px solid #f1cbb8; color: #9b4e2c; font-size: 12px; line-height: 1.65; box-shadow: 0 8px 24px #1d29331c; }
 .store-map {
   height: 100%;
   min-height: 660px;
