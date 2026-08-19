@@ -130,7 +130,7 @@ function BaiduLayer({
   const host = useRef<HTMLDivElement>(null);
   const [ak, setAk] = useState(BAIDU_MAP_AK);
   const [draft, setDraft] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     localStorage.setItem("landun-baidu-map-ak", BAIDU_MAP_AK);
@@ -163,6 +163,7 @@ function BaiduLayer({
           if (item) routePoints.push(point);
         });
         if (routePoints.length > 1) map.addOverlay(new B.Polyline(routePoints, { strokeColor: "#ee743c", strokeWeight: 3, strokeOpacity: 0.75 }));
+        setStatus("ready");
         onReady(true);
       } catch {
         setStatus("error");
@@ -176,7 +177,7 @@ function BaiduLayer({
       script.setAttribute("data-landun-baidu", "true");
       script.setAttribute("src", `https://api.map.baidu.com/getscript?v=4.0&ak=${encodeURIComponent(ak)}&services=&t=${Date.now()}`);
       script.addEventListener("load", draw, { once: true });
-      script.addEventListener("error", () => { setStatus("error"); onReady(false); }, { once: true });
+      script.addEventListener("error", () => { if (!window.BMapGL) { setStatus("error"); onReady(false); } }, { once: true });
       document.body.appendChild(script);
       if (!document.querySelector('link[data-landun-baidu-css="true"]')) {
         const css = document.createElement("link");
@@ -209,7 +210,7 @@ function BaiduLayer({
           <a href="https://lbsyun.baidu.com/" target="_blank" rel="noreferrer">前往百度地图开放平台申请 AK ↗</a>
         </div>
       )}
-      {ak && status !== "loading" && status !== "idle" && (
+      {ak && status === "error" && (
         <div className="baidu-error">百度地图没有加载成功。请确认 AK 类型为“浏览器端”，并已将 <b>landun-dealer-workbench.july-0.chatgpt.site</b> 加入 Referer 白名单；修改后刷新本页再试。</div>
       )}
     </>
