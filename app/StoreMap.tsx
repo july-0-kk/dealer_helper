@@ -174,10 +174,17 @@ function BaiduLayer({
       document.querySelector('script[data-landun-baidu="true"]')?.remove();
       const script = document.createElement("script");
       script.setAttribute("data-landun-baidu", "true");
-      script.setAttribute("src", `https://api.map.baidu.com/api?type=webgl&v=4.0&ak=${encodeURIComponent(ak)}`);
+      script.setAttribute("src", `https://api.map.baidu.com/getscript?v=4.0&ak=${encodeURIComponent(ak)}&services=&t=${Date.now()}`);
       script.addEventListener("load", draw, { once: true });
       script.addEventListener("error", () => { setStatus("error"); onReady(false); }, { once: true });
       document.body.appendChild(script);
+      if (!document.querySelector('link[data-landun-baidu-css="true"]')) {
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = "https://api.map.baidu.com/res/webgl/40/bmap.css";
+        css.setAttribute("data-landun-baidu-css", "true");
+        document.head.appendChild(css);
+      }
     }
     return () => {
       cancelled = true;
