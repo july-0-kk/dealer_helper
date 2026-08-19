@@ -1,5 +1,13 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+
+declare global {
+  interface Window {
+    BMapGL?: any;
+  }
+}
+
 export type MapStore = {
   id: string;
   name: string;
@@ -107,6 +115,89 @@ export function buildRoute(stores: MapStore[]) {
   return route;
 }
 
+function BaiduLayer({
+  stores,
+  route,
+  onChoose,
+  onReady,
+}: {
+  stores: MapStore[];
+  route: RouteItem[];
+  onChoose: (id: string) => void;
+  onReady: (ready: boolean) => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const [ak, setAk] = useState("");
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    setAk(localStorage.getItem("landun-baidu-map-ak") || "");
+  }, []);
+  useEffect(() => {
+    if (!ak || !host.current) {
+      onReady(false);
+      return;
+    }
+    let cancelled = false;
+    const draw = () => {
+      if (cancelled || !host.current || !window.BMapGL) return;
+      host.current.innerHTML = "";
+      const B = window.BMapGL;
+      const map = new B.Map(host.current);
+      map.centerAndZoom(new B.Point(base[1], base[0]), 12);
+      map.enableScrollWheelZoom(true);
+      const origin = new B.Point(base[1], base[0]);
+      map.addOverlay(new B.Marker(origin));
+      const routePoints = [origin];
+      stores.forEach((store) => {
+        const p = pointFor(store), point = new B.Point(p[1], p[0]);
+        const item = route.find((r) => r.store.id === store.id);
+        const marker = new B.Marker(point);
+        map.addOverlay(marker);
+        marker.addEventListener("click", () => onChoose(store.id));
+        if (item) routePoints.push(point);
+      });
+      if (routePoints.length > 1) {
+        map.addOverlay(new B.Polyline(routePoints, { strokeColor: "#ee743c", strokeWeight: 3, strokeOpacity: 0.75 }));
+      }
+      onReady(true);
+    };
+    if (window.BMapGL) draw();
+    else {
+      const existing = document.querySelector('script[data-landun-baidu="true"]');
+      const script = existing || document.createElement("script");
+      script.setAttribute("data-landun-baidu", "true");
+      script.setAttribute("src", `https://api.map.baidu.com/api?type=webgl&v=4.0&ak=${encodeURIComponent(ak)}`);
+      script.addEventListener("load", draw, { once: true });
+      if (!existing) document.body.appendChild(script);
+    }
+    return () => {
+      cancelled = true;
+      onReady(false);
+    };
+  }, [ak, onChoose, onReady, route, stores]);
+
+  function saveAk() {
+    const value = draft.trim();
+    if (!value) return;
+    localStorage.setItem("landun-baidu-map-ak", value);
+    setAk(value);
+  }
+  return (
+    <>
+      <div ref={host} className="baidu-layer" />
+      {!ak && (
+        <div className="baidu-ak-panel">
+          <b>启用百度地图</b>
+          <p>在百度地图开放平台创建浏览器端 AK 后粘贴到这里，地图会自动切换为百度底图。</p>
+          <div><input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="粘贴百度地图 AK" /><button onClick={saveAk}>启用</button></div>
+          <a href="https://lbsyun.baidu.com/" target="_blank" rel="noreferrer">前往百度地图开放平台申请 AK ↗</a>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function StoreMap({
   stores,
   onChoose,
@@ -114,8 +205,9 @@ export default function StoreMap({
   stores: MapStore[];
   onChoose: (id: string) => void;
 }) {
-  const route = buildRoute(stores);
+  const route = useMemo(() => buildRoute(stores), [stores]);
   const ids = new Set(route.map((r) => r.store.id));
+  const [baiduReady, setBaiduReady] = useState(false);
   return (
     <section className="map-page">
       <div className="map-summary">
@@ -162,7 +254,8 @@ export default function StoreMap({
             </button>
           ))}
         </aside>
-        <div className="map-wrap">
+        <div className={`map-wrap ${baiduReady ? "baidu-active" : ""}`}>
+          <BaiduLayer stores={stores} route={route} onChoose={onChoose} onReady={setBaiduReady} />
           <div className="store-map">
             <div className="map-grid-lines" />
             <div className="map-title">杭州 · 经销商门店分布</div>

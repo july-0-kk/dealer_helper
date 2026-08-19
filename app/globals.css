@@ -214,6 +214,32 @@
   position: relative;
   min-height: 660px;
 }
+.baidu-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  min-height: 660px;
+  background: #dfe9e8;
+}
+.baidu-active > .store-map { opacity: 0; pointer-events: none; }
+.baidu-ak-panel {
+  position: absolute;
+  z-index: 6;
+  left: 24px;
+  bottom: 68px;
+  width: min(360px, calc(100% - 48px));
+  padding: 16px;
+  border: 1px solid #d8e2e3;
+  border-radius: 10px;
+  background: #fffffff2;
+  box-shadow: 0 8px 24px #1d29331c;
+}
+.baidu-ak-panel b { color: #243b45; font-size: 14px; }
+.baidu-ak-panel p { margin: 8px 0 12px; color: #718087; font-size: 11px; line-height: 1.6; }
+.baidu-ak-panel div { display: flex; gap: 6px; }
+.baidu-ak-panel input { min-width: 0; flex: 1; border: 1px solid #d5dfe1; border-radius: 5px; padding: 8px 9px; font-size: 12px; }
+.baidu-ak-panel button { border: 0; border-radius: 5px; padding: 0 13px; background: #ee743c; color: white; cursor: pointer; }
+.baidu-ak-panel a { display: inline-block; margin-top: 10px; color: #ee743c; font-size: 11px; text-decoration: none; }
 .store-map {
   height: 100%;
   min-height: 660px;
