@@ -6,6 +6,26 @@ import type { MapStore } from "./StoreMap";
 
 type ChangeType = "增加" | "减少" | "后续补货";
 type ProductChange = { id: string; product: string; type: ChangeType; reason: string };
+const LOCAL_OLLAMA_URL = "http://127.0.0.1:11434";
+
+function parseModelSuggestions(content: string): ProductChange[] {
+  const cleaned = content.replace(/```json|```/gi, "").trim();
+  const parsed = JSON.parse(cleaned);
+  const rows = Array.isArray(parsed) ? parsed : parsed?.suggestions;
+  if (!Array.isArray(rows)) return [];
+
+  const allowed = new Set<ChangeType>(["增加", "减少", "后续补货"]);
+  return rows
+    .filter((row) => row && typeof row.product === "string" && allowed.has(row.type as ChangeType))
+    .slice(0, 10)
+    .map((row, index) => ({
+      id: `model-${Date.now()}-${index}`,
+      product: row.product.trim(),
+      type: row.type as ChangeType,
+      reason: typeof row.reason === "string" ? row.reason.slice(0, 48) : "根据拜访谈话整理",
+    }))
+    .filter((row) => row.product.length > 0);
+}
 
 function productCandidates(text: string, products: string[]) {
   const candidates = new Set(products.filter(Boolean));
@@ -35,6 +55,8 @@ export default function VisitAssistant({ store, onClose, onSave }: { store: MapS
   const [interim, setInterim] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [suggestions, setSuggestions] = useState<ProductChange[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [modelConnected, setModelConnected] = useState<boolean | null>(null);
   const [notice, setNotice] = useState("录音仅保留在当前浏览器；接入语音服务后可自动云端转写。");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -99,10 +121,47 @@ export default function VisitAssistant({ store, onClose, onSave }: { store: MapS
     setRecording(false);
   }
 
-  function runAnalysis() {
-    const result = analyzeTranscript(transcript, store.products);
-    setSuggestions(result);
-    setNotice(result.length ? "已从谈话记录中提取产品动作，请确认后同步。" : "暂未识别产品名称。你可以补充文字，或手动添加一条建议。");
+  async function runAnalysis() {
+    const text = transcript.trim();
+    if (!text) {
+      setNotice("请先录音或填写谈话记录，再进行产品分析。");
+      return;
+    }
+
+    setAnalyzing(true);
+    try {
+      const response = await fetch(`${LOCAL_OLLAMA_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "qwen3.5:4b",
+          stream: false,
+          think: false,
+          format: "json",
+          options: { temperature: 0.1 },
+          messages: [
+            { role: "system", content: "你是防水产品渠道拜访助手。只输出合法 JSON，不要输出解释、Markdown 或其他字段。" },
+            {
+              role: "user",
+              content: `请根据以下门店拜访谈话，提取明确的产品动作。\n门店：${store.name}\n现有产品：${store.products.join("、") || "暂无记录"}\n谈话记录：${text}\n\n仅输出：{"suggestions":[{"product":"产品名","type":"增加|减少|后续补货","reason":"不超过24字"}]}。没有明确产品动作时 suggestions 为空数组。不得编造谈话中不存在的产品。`,
+            },
+          ],
+        }),
+      });
+      if (!response.ok) throw new Error(`local model ${response.status}`);
+      const payload = await response.json();
+      const result = parseModelSuggestions(payload?.message?.content || "");
+      setSuggestions(result);
+      setModelConnected(true);
+      setNotice(result.length ? "本机免费模型已完成分析，请确认后同步到门店。" : "本机模型未识别到明确产品动作；你仍可手动添加建议。");
+    } catch {
+      const result = analyzeTranscript(text, store.products);
+      setSuggestions(result);
+      setModelConnected(false);
+      setNotice(result.length ? "本机模型暂未连接，已使用基础规则整理建议。" : "本机模型暂未连接，且基础规则未识别到产品；可手动添加建议。");
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   function applyChanges() {
@@ -129,7 +188,7 @@ export default function VisitAssistant({ store, onClose, onSave }: { store: MapS
       <p className="recording-notice">{notice}</p>
       {audioUrl && <audio className="visit-audio" controls src={audioUrl}>当前浏览器不支持录音回放。</audio>}
       <label className="transcript-label">谈话记录<textarea value={`${transcript}${interim}`} onChange={(event) => { setTranscript(event.target.value); setInterim(""); }} placeholder="开始录音后，实时转写会显示在这里；也可以手动补充关键谈话。" /></label>
-      <div className="assistant-actions"><button className="analyze-button" onClick={runAnalysis}><Sparkles size={15} />分析产品动作</button><button onClick={() => setSuggestions((value) => [...value, { id: String(Date.now()), product: "", type: "增加", reason: "手动补充" }])}><Plus size={15} />添加建议</button></div>
+      <div className="assistant-actions"><button className="analyze-button" onClick={runAnalysis} disabled={analyzing}><Sparkles size={15} />{analyzing ? "本机模型分析中…" : modelConnected === false ? "重新连接本机模型" : "用本机模型分析"}</button><button onClick={() => setSuggestions((value) => [...value, { id: String(Date.now()), product: "", type: "增加", reason: "手动补充" }])}><Plus size={15} />添加建议</button></div>
       <div className="suggestion-list"><div><b>产品调整建议</b><small>可修改后再同步</small></div>{suggestions.length ? suggestions.map((item, index) => <article key={item.id}><input value={item.product} placeholder="产品名称" onChange={(event) => setSuggestions((value) => value.map((row, rowIndex) => rowIndex === index ? { ...row, product: event.target.value } : row))} /><select value={item.type} onChange={(event) => setSuggestions((value) => value.map((row, rowIndex) => rowIndex === index ? { ...row, type: event.target.value as ChangeType } : row))}><option>增加</option><option>减少</option><option>后续补货</option></select><input value={item.reason} placeholder="原因" onChange={(event) => setSuggestions((value) => value.map((row, rowIndex) => rowIndex === index ? { ...row, reason: event.target.value } : row))} /><button onClick={() => setSuggestions((value) => value.filter((_, rowIndex) => rowIndex !== index))} aria-label="删除建议"><Pause size={13} /></button></article>) : <p>尚无建议。完成录音后点击“分析产品动作”。</p>}</div>
       <footer><span>后续补货会作为待跟进产品保存在门店详情中。</span><button className="apply-button" onClick={applyChanges}>确认并同步门店</button></footer>
     </section>
