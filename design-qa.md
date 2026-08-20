@@ -1,39 +1,31 @@
-# Design QA
+# 地图单屏工作区设计核对
 
-Source visual truth: `C:\Users\xdk\.codex\generated_images\01a01854-f5fa-7461-aedf-6a263c557232\exec-8e9b7943-c31b-4f50-a66a-e7c22d758262.png`
+## 对比对象
 
-Implementation screenshot: `D:\ai\项目\作品集合\销售项目\design-qa-implementation.png`
+- 视觉参考：`D:/xwechat_files/wxid_9f0eqhmau3wp22_e85b/temp/RWTemp/2026-08/9e20f478899dc29eb19741386f9343c8/760117daf5f87271bb033866087e1420.png`
+- 实现截图：浏览器会话中于 2026-08-20 捕获的 `/map` 页面视口截图（1280 × 720 CSS px，device scale factor 1）。
+- 状态：桌面端、路线列表收起；另检查了第一条门店详情展开状态。
 
-Viewport and state: desktop web-app, 门店档案 / first store selected. Source is 1440×1024; implementation was captured at the in-app browser desktop viewport (1290×720). Comparison was normalized by reviewing the shared app-content layout rather than browser chrome or vertical crop.
+## 对比结论
 
-## Findings
+**字体与层级**：保留现有中文界面的品牌、顶部导航和橙色重点色；路线编号、门店名、距离和优先分以三级层级呈现，避免原页面左栏信息拥挤。
 
-- No actionable P0, P1, or P2 differences.
-- The source's primary visual hierarchy is preserved: a compact top bar, left searchable store directory, and large editable store profile on the right.
-- The implementation uses product initials and semantic color tokens for imported generic SKU names rather than branded product photography. This is intentional because the imported data contains placeholder product names and supplies no product image assets.
+**布局与间距**：主工作区固定为 `100vh` 内的顶部栏、点位操作栏和左右地图区。详情不再位于地图下方，展开后仅在左侧卡片内滚动，地图保持完整高度可见。
 
-## Fidelity surfaces
+**颜色与视觉标识**：沿用原有白底、浅灰边框和橙色优先级标识；展开状态使用浅橙边框，避免和百度地图底图竞争视觉焦点。
 
-- Fonts and typography: Uses a compact Chinese system UI stack with a clear heading / metadata / control hierarchy. Small labels remain legible without clipping in the captured desktop view.
-- Spacing and layout rhythm: The 430px directory panel, right-hand editable workspace, consistent 20–32px section gaps, and slim row separators follow the selected split-workspace direction.
-- Colors and visual tokens: Orange is reserved for import, active navigation, ranking, and the primary visit action; neutral backgrounds and restrained blue/green status colors retain focus.
-- Image quality and assets: The selected mock contains generic, non-brand-specific product thumbnails. The implementation intentionally maps imported placeholder SKUs to compact semantic identifiers; no user-provided product imagery exists to reproduce.
-- Copy and content: Labels match the waterproof distributor workflow: 门店目录, 产品覆盖, 下次拜访计划, 导入出货表, 今日推荐拜访.
+**图像与地图**：用户提供的参考图证明其 Chrome 页面可加载百度地图。自动核对环境不在 AK 的 Referer 白名单内，因此仅显示地图容器和加载失败提示；本轮未修改 AK、地图脚本或路线渲染逻辑。
 
-## Primary interactions checked
+**文本与交互**：左侧每条路线新增明确的展开/收起箭头及无障碍标签；展开内容包含门店名称、区域、地址、经纬度、经销商、拜访记录、产品和保存/删除操作。
 
-- Store directory selection updates the right-side profile.
-- Search field is present and filters the directory.
-- 今日推荐拜访 opens a ranked list with visible priority reasons.
-- Import control, edit control, product management, visit planner controls, and record-visit action are present.
+## 已验证交互
 
-## Focused region comparison
+- 点击第一条路线的右侧箭头可展开门店详情。
+- 展开后表单、产品标签、保存和删除操作均出现在同一张左侧卡片内。
+- 路线列表在固定高度的左栏内滚动，地图区域不被详情挤出页面。
 
-The top navigation and the left-directory/right-profile split were reviewed separately because these define the selected design direction. No focused correction was needed after the full-view comparison.
+## 结果
 
-## Comparison history
-
-1. Initial capture exposed the prior narrow-screen stacked layout.
-2. Rebuilt the shell around the selected split workspace, then captured the local implementation and verified the primary navigation state.
+没有发现与本次目标相关的 P0、P1 或 P2 布局问题。
 
 final result: passed
