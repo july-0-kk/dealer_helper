@@ -15,6 +15,9 @@ export type MapStore = {
   region: string;
   dealer: string;
   owner?: string;
+  terminalType?: string;
+  manager?: string;
+  createdAt?: string;
   level: string;
   products: string[];
   visit: string;
@@ -32,7 +35,7 @@ export type RouteItem = {
   point: [number, number];
 };
 
-export const base: [number, number] = [30.252, 120.165];
+export const base: [number, number] = [23.129, 113.264];
 const BAIDU_MAP_AK = "l5FhlKxJus8GU5Vjv7zhHfkzOAFIeIqw";
 const regionCenters: Record<string, [number, number]> = {
   东区: [30.275, 120.235],
@@ -40,6 +43,17 @@ const regionCenters: Record<string, [number, number]> = {
   西区: [30.252, 120.073],
   北区: [30.342, 120.156],
   中心区: [30.248, 120.166],
+};
+const guangzhouRegionCenters: Record<string, [number, number]> = {
+  增城: [23.261, 113.81],
+  荔城: [23.294, 113.83],
+  黄埔: [23.181, 113.507],
+  永和: [23.195, 113.573],
+  新塘: [23.128, 113.6],
+  石滩: [23.188, 113.688],
+  东宁: [23.171, 113.555],
+  东兴: [23.16, 113.563],
+  天河: [23.135, 113.335],
 };
 
 function hash(id: string) {
@@ -54,7 +68,8 @@ export function pointFor(store: MapStore): [number, number] {
   const lat = Number(store.lat);
   const lng = Number(store.lng);
   if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
-  const c = regionCenters[store.region] || base;
+  const matchedCenter = Object.entries(guangzhouRegionCenters).find(([name]) => store.region.includes(name) || store.address?.includes(name))?.[1];
+  const c = matchedCenter || regionCenters[store.region] || base;
   const n = hash(store.id);
   return [c[0] + ((n % 7) - 3) * 0.004, c[1] + ((Math.floor(n / 7) % 7) - 3) * 0.005];
 }
@@ -242,8 +257,18 @@ function BaiduLayer({
     const map = mapRef.current;
     const B = window.BMapGL;
     if (!map || !B || !focusNonce || !focusTarget) return;
+    const selectedStore = focusTarget === "origin" ? null : stores.find((item) => item.id === focusTarget);
+    if (selectedStore && (!Number.isFinite(Number(selectedStore.lat)) || !Number.isFinite(Number(selectedStore.lng))) && selectedStore.address && B.Geocoder) {
+      new B.Geocoder().getPoint(selectedStore.address, (located: any) => {
+        if (!located) return;
+        moveRef.current(selectedStore.id, { lat: located.lat, lng: located.lng, address: selectedStore.address });
+        map.centerAndZoom(located, 16);
+        statusRef.current(`已按详细地址定位「${selectedStore.name}」`);
+      });
+      return;
+    }
     const point = focusTarget === "origin" ? base : (() => {
-      const store = stores.find((item) => item.id === focusTarget);
+      const store = selectedStore;
       return store ? pointFor(store) : null;
     })();
     if (!point) return;
@@ -372,7 +397,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
                 <div className="route-row">
                   <button className="route-select" onClick={() => { onChoose(store.id); if (!open) toggleDetail(store); }} aria-label={`定位 ${store.name}`}>
                     <b className="route-number">{String(i + 1).padStart(2, "0")}</b>
-                    <span className="route-info"><strong>{store.name}</strong><small>{store.region} · {store.dealer}</small><em>{store.address || "暂未填写详细地址"}</em></span>
+                    <span className="route-info"><strong>{store.name}</strong><small>{store.region} · {store.terminalType || store.dealer}</small><em>{store.address || "暂未填写详细地址"}</em></span>
                     <b className="route-score">{store.level}</b>
                   </button>
                   <button className="route-expand" onClick={() => toggleDetail(store)} aria-label={open ? "收起门店详情" : "展开门店详情"} aria-expanded={open}>{open ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
@@ -391,7 +416,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
                     <button type="button" onClick={(event) => updateAddressByCoordinates(event, draft)}><MapPinned size={13} />按坐标更新地址</button>
                     <button type="button" onClick={(event) => { event.stopPropagation(); onChoose(draft.id); }}><LocateFixed size={13} />查看点位</button>
                   </div>
-                  <div className="route-detail-meta"><span>经销商：{draft.dealer}</span><span>最近拜访：{draft.visit}</span></div>
+                  <div className="route-detail-meta"><span>终端类型：{draft.terminalType || "未填写"}</span><span>客户经理：{draft.manager || draft.dealer}</span><span>{draft.createdAt ? `创建时间：${draft.createdAt}` : `最近拜访：${draft.visit}`}</span></div>
                   <div className="detail-products">{draft.products.length ? draft.products.map((product) => <span key={product}>{product}</span>) : <small>暂无产品记录</small>}</div>
                   <button className="route-save" onClick={saveDetail}><Save size={14} />保存门店详情</button>
                 </div>}
@@ -409,7 +434,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
             <button className={routeVisible ? "active" : ""} onClick={() => setRouteVisible((visible) => !visible)} aria-pressed={routeVisible}>{routeVisible ? "隐藏地图路线" : "在地图上显示路线"}</button>
           </aside>
           <div className="map-tools"><span className={addMode ? "active" : ""}>{addMode ? "请在地图上点击新增位置，地址会自动识别" : editMode ? "拖动门店标记即可同步更新位置与地址" : routeVisible ? "已显示推荐拜访路线" : "路线已隐藏，可在右上角规划窗口开启"}</span></div>
-          <div className="store-map"><div className="map-grid-lines" /><div className="map-title">杭州 · 经销商门店分布</div><button className="map-pin origin-pin" style={{ left: "50%", top: "50%" }} aria-label="销售驻点"><i /><span>销售驻点</span></button>{stores.map((store) => { const p = pointFor(store); const item = route.find((r) => r.store.id === store.id); const rank = route.findIndex((r) => r.store.id === store.id); const left = `${Math.max(8, Math.min(92, 50 + (p[1] - base[1]) * 260))}%`; const top = `${Math.max(10, Math.min(90, 50 - (p[0] - base[0]) * 260))}%`; return <button key={store.id} className={`map-pin ${item ? "route-pin" : "store-pin"} ${selectedId === store.id ? "selected" : ""}`} style={{ left, top }} onClick={() => onChoose(store.id)} aria-label={`选择 ${store.name}`}><i>{item ? String(rank + 1).padStart(2, "0") : ""}</i><span>{store.name}</span></button>; })}<div className="map-compass">N</div><small className="map-note">未填写坐标的门店按区域近似展示</small></div>
+          <div className="store-map"><div className="map-grid-lines" /><div className="map-title">广州 · 终端网点分布</div><button className="map-pin origin-pin" style={{ left: "50%", top: "50%" }} aria-label="销售驻点"><i /><span>销售驻点</span></button>{stores.map((store) => { const p = pointFor(store); const item = route.find((r) => r.store.id === store.id); const rank = route.findIndex((r) => r.store.id === store.id); const left = `${Math.max(8, Math.min(92, 50 + (p[1] - base[1]) * 260))}%`; const top = `${Math.max(10, Math.min(90, 50 - (p[0] - base[0]) * 260))}%`; return <button key={store.id} className={`map-pin ${item ? "route-pin" : "store-pin"} ${selectedId === store.id ? "selected" : ""}`} style={{ left, top }} onClick={() => onChoose(store.id)} aria-label={`选择 ${store.name}`}><i>{item ? String(rank + 1).padStart(2, "0") : ""}</i><span>{store.name}</span></button>; })}<div className="map-compass">N</div><small className="map-note">选中未定位网点时，会按详细地址自动定位</small></div>
           <div className="map-legend"><span><i className="origin-dot" />销售驻点</span><span><i className="route-dot" />推荐拜访 · 百度驾车路线</span><span><i className="store-dot" />其他门店</span></div>
         </div>
       </div>

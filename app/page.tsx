@@ -2,6 +2,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { buildRoute } from "./StoreMap";
+import { createRealStores } from "./realStores";
 
 type Store = {
   id: string;
@@ -72,24 +73,24 @@ const seed: Store[] = [
 ];
 
 export default function Home() {
-  const [stores, setStores] = useState(seed),
+  const [stores, setStores] = useState<Store[]>(createRealStores()),
     [visits, setVisits] = useState<Visit[]>([]),
-    [activeId, setActiveId] = useState("MD001"),
+    [activeId, setActiveId] = useState(""),
     [view, setView] = useState<"stores" | "visits">("stores"),
     [q, setQ] = useState(""),
     [editing, setEditing] = useState<Store | null>(null),
     [toast, setToast] = useState("");
   useEffect(() => {
-    const s = localStorage.getItem("landun-stores-v2"),
-      v = localStorage.getItem("landun-visits");
+    const s = localStorage.getItem("landun-stores-v3"),
+      v = localStorage.getItem("landun-visits-v3");
     if (s) setStores(JSON.parse(s));
     if (v) setVisits(JSON.parse(v));
   }, []);
   useEffect(() => {
-    localStorage.setItem("landun-stores-v2", JSON.stringify(stores));
+    localStorage.setItem("landun-stores-v3", JSON.stringify(stores));
   }, [stores]);
   useEffect(() => {
-    localStorage.setItem("landun-visits", JSON.stringify(visits));
+    localStorage.setItem("landun-visits-v3", JSON.stringify(visits));
   }, [visits]);
   const filtered = useMemo(
     () =>

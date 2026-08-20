@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import StoreMap, { MapStore } from "../StoreMap";
+import { createRealStores } from "../realStores";
 
 const fallback: MapStore[] = [
   {
@@ -47,7 +48,7 @@ const fallback: MapStore[] = [
 ];
 
 export default function MapPage() {
-  const [stores, setStores] = useState<MapStore[]>(fallback),
+  const [stores, setStores] = useState<MapStore[]>(createRealStores()),
     [selected, setSelected] = useState(""),
     [editMode, setEditMode] = useState(false),
     [addMode, setAddMode] = useState(false),
@@ -56,12 +57,12 @@ export default function MapPage() {
     [focusNonce, setFocusNonce] = useState(0),
     [notice, setNotice] = useState("");
   useEffect(() => {
-    const raw = localStorage.getItem("landun-stores-v2");
+    const raw = localStorage.getItem("landun-stores-v3");
     if (raw) setStores(JSON.parse(raw));
   }, []);
   function persist(next: MapStore[]) {
     setStores(next);
-    localStorage.setItem("landun-stores-v2", JSON.stringify(next));
+    localStorage.setItem("landun-stores-v3", JSON.stringify(next));
   }
   function choose(id: string) {
     setSelected(id);
