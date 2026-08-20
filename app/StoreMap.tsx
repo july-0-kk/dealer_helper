@@ -46,6 +46,10 @@ function hash(id: string) {
   return [...id].reduce((a, c) => a + c.charCodeAt(0), 0);
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character] || character));
+}
+
 export function pointFor(store: MapStore): [number, number] {
   const lat = Number(store.lat);
   const lng = Number(store.lng);
@@ -96,10 +100,11 @@ export function buildRoute(stores: MapStore[]) {
 }
 
 function BaiduLayer({
-  stores, route, selectedId, onChoose, onReady, editMode, addMode, trafficEnabled, focusTarget, focusNonce, geocodeRequest, onAddAt, onMove, onLocationStatus,
+  stores, route, routeVisible, selectedId, onChoose, onReady, editMode, addMode, trafficEnabled, focusTarget, focusNonce, geocodeRequest, onAddAt, onMove, onLocationStatus,
 }: {
   stores: MapStore[];
   route: RouteItem[];
+  routeVisible: boolean;
   selectedId: string;
   onChoose: (id: string) => void;
   onReady: (ready: boolean) => void;
@@ -186,10 +191,18 @@ function BaiduLayer({
           marker.addEventListener("click", () => chooseRef.current(store.id));
           map.addOverlay(marker);
           markerPoints.set(store.id, marker.getPosition());
+          if (isSelected && B.Label && B.Size) {
+            const planned = route.find((item) => item.store.id === store.id);
+            const score = planned?.score ?? Math.round(business(store).score + Math.max(0, 30 - km(base, p) * 4));
+            const label = new B.Label(`<div style="display:grid;gap:3px;min-width:122px;padding:8px 10px;border-radius:8px;background:#6d35d9;color:#fff;box-shadow:0 8px 20px rgba(91,43,184,.3)"><b style="overflow:hidden;text-overflow:ellipsis;font-size:12px">${escapeHtml(store.name)}</b><span style="font-size:10px;opacity:.9">评分 ${score}</span></div>`, { position: marker.getPosition(), offset: new B.Size(20, -50) });
+            label.setStyle?.({ border: "0", borderRadius: "8px", padding: "0", background: "transparent", color: "#ffffff", fontSize: "12px", lineHeight: "1.25", boxShadow: "none", whiteSpace: "nowrap" });
+            label.addEventListener?.("click", () => chooseRef.current(store.id));
+            map.addOverlay(label);
+          }
         });
         const routePoints: any[] = [origin, ...route.map((item) => markerPoints.get(item.store.id)).filter(Boolean)];
         const lineOptions = { renderOptions: { map, autoViewport: false }, strokeColor: "#ee743c", strokeWeight: 5, strokeOpacity: 0.85 };
-        if (routePoints.length > 1) {
+        if (routeVisible && routePoints.length > 1) {
           const end = routePoints[routePoints.length - 1];
           const waypoints = routePoints.slice(1, -1);
           if (B.DrivingRouteLine) {
@@ -223,7 +236,7 @@ function BaiduLayer({
       }
     }
     return () => { cancelled = true; onReady(false); };
-  }, [ak, editMode, route, stores, selectedId, onReady, trafficEnabled]);
+  }, [ak, editMode, route, routeVisible, stores, selectedId, onReady, trafficEnabled]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -299,6 +312,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
   const [baiduReady, setBaiduReady] = useState(false);
   const [expandedId, setExpandedId] = useState("");
   const [detailDraft, setDetailDraft] = useState<MapStore | null>(null);
+  const [routeVisible, setRouteVisible] = useState(false);
   const [geocodeRequest, setGeocodeRequest] = useState<{ id: string; kind: "address" | "coordinates"; address?: string; lat?: number; lng?: number; nonce: number } | null>(null);
 
   useEffect(() => {
@@ -386,8 +400,15 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
           </div>
         </aside>
         <div className={`map-wrap ${baiduReady ? "baidu-active" : ""}`}>
-          <BaiduLayer stores={stores} route={route} selectedId={selectedId} onChoose={onChoose} onReady={setBaiduReady} editMode={editMode} addMode={addMode} trafficEnabled={trafficEnabled} focusTarget={focusTarget} focusNonce={focusNonce} geocodeRequest={geocodeRequest} onAddAt={onAddAt} onMove={onMove} onLocationStatus={onLocationStatus} />
-          <div className="map-tools"><span className={addMode ? "active" : ""}>{addMode ? "请在地图上点击新增位置，地址会自动识别" : editMode ? "拖动门店标记即可同步更新位置与地址" : "真实百度地图 · 驾车路线 · 可编辑网点"}</span></div>
+          <BaiduLayer stores={stores} route={route} routeVisible={routeVisible} selectedId={selectedId} onChoose={onChoose} onReady={setBaiduReady} editMode={editMode} addMode={addMode} trafficEnabled={trafficEnabled} focusTarget={focusTarget} focusNonce={focusNonce} geocodeRequest={geocodeRequest} onAddAt={onAddAt} onMove={onMove} onLocationStatus={onLocationStatus} />
+          <aside className="visit-plan-panel" aria-label="推荐拜访规划">
+            <small>推荐拜访规划</small>
+            <b>本轮建议走访 {route.length} 家</b>
+            <p>综合门店优先级、拜访状态与相邻距离自动排序。</p>
+            <div><span>预计行程</span><strong>{route.reduce((total, item) => total + item.distance, 0).toFixed(1)} km</strong></div>
+            <button className={routeVisible ? "active" : ""} onClick={() => setRouteVisible((visible) => !visible)} aria-pressed={routeVisible}>{routeVisible ? "隐藏地图路线" : "在地图上显示路线"}</button>
+          </aside>
+          <div className="map-tools"><span className={addMode ? "active" : ""}>{addMode ? "请在地图上点击新增位置，地址会自动识别" : editMode ? "拖动门店标记即可同步更新位置与地址" : routeVisible ? "已显示推荐拜访路线" : "路线已隐藏，可在右上角规划窗口开启"}</span></div>
           <div className="store-map"><div className="map-grid-lines" /><div className="map-title">杭州 · 经销商门店分布</div><button className="map-pin origin-pin" style={{ left: "50%", top: "50%" }} aria-label="销售驻点"><i /><span>销售驻点</span></button>{stores.map((store) => { const p = pointFor(store); const item = route.find((r) => r.store.id === store.id); const rank = route.findIndex((r) => r.store.id === store.id); const left = `${Math.max(8, Math.min(92, 50 + (p[1] - base[1]) * 260))}%`; const top = `${Math.max(10, Math.min(90, 50 - (p[0] - base[0]) * 260))}%`; return <button key={store.id} className={`map-pin ${item ? "route-pin" : "store-pin"} ${selectedId === store.id ? "selected" : ""}`} style={{ left, top }} onClick={() => onChoose(store.id)} aria-label={`选择 ${store.name}`}><i>{item ? String(rank + 1).padStart(2, "0") : ""}</i><span>{store.name}</span></button>; })}<div className="map-compass">N</div><small className="map-note">未填写坐标的门店按区域近似展示</small></div>
           <div className="map-legend"><span><i className="origin-dot" />销售驻点</span><span><i className="route-dot" />推荐拜访 · 百度驾车路线</span><span><i className="store-dot" />其他门店</span></div>
         </div>

@@ -2113,7 +2113,16 @@ body {
 @keyframes selected-map-pin { 0% { transform: translateY(0) scale(1); } 38% { transform: translateY(-11px) scale(1.1); } 68% { transform: translateY(-11px) scale(1.1); } 100% { transform: translateY(0) scale(1); } }
 .map-wrap, .baidu-layer, .store-map { height: 100%; min-height: 0; }
 .baidu-layer { z-index: 4; }
-.map-tools { top: 14px; right: 14px; }
+.visit-plan-panel { position: absolute; z-index: 8; top: 14px; right: 14px; width: 244px; box-sizing: border-box; padding: 13px; border: 1px solid #e4ddf5; border-radius: 10px; background: #fffffff2; box-shadow: 0 10px 28px #34303d20; color: #36434a; }
+.visit-plan-panel small, .visit-plan-panel b { display: block; }
+.visit-plan-panel small { color: #7142ca; font-size: 10px; letter-spacing: .06em; }
+.visit-plan-panel b { margin-top: 4px; font-size: 13px; }
+.visit-plan-panel p { margin: 6px 0 10px; color: #7e8b91; font-size: 10px; line-height: 1.5; }
+.visit-plan-panel > div { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-top: 1px solid #ece8f5; color: #8c969d; font-size: 10px; }
+.visit-plan-panel strong { color: #7042ca; font-size: 13px; }
+.visit-plan-panel button { width: 100%; border: 1px solid #d7caef; border-radius: 6px; padding: 7px 8px; background: #f8f5ff; color: #6840bd; font-size: 10px; cursor: pointer; }
+.visit-plan-panel button:hover, .visit-plan-panel button.active { border-color: #7545d3; background: #7545d3; color: #fff; }
+.map-tools { top: 188px; right: 14px; }
 .map-legend { z-index: 6; }
 .map-note { z-index: 6; }
 .map-toast { z-index: 20; }
@@ -2125,4 +2134,5 @@ body {
   .map-layout { height: auto; grid-template-columns: 1fr; }
   .route-list { max-height: 420px; }
   .map-wrap, .baidu-layer, .store-map { height: 520px; }
+  .visit-plan-panel { width: 228px; }
 }
