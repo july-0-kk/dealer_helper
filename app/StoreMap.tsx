@@ -68,10 +68,18 @@ export function pointFor(store: MapStore): [number, number] {
   const lat = Number(store.lat);
   const lng = Number(store.lng);
   if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
-  const matchedCenter = Object.entries(guangzhouRegionCenters).find(([name]) => store.region.includes(name) || store.address?.includes(name))?.[1];
-  const c = matchedCenter || regionCenters[store.region] || base;
+  const c = regionPointFor(store);
   const n = hash(store.id);
   return [c[0] + ((n % 7) - 3) * 0.004, c[1] + ((Math.floor(n / 7) % 7) - 3) * 0.005];
+}
+
+export function hasRealPoint(store: MapStore) {
+  return Number.isFinite(Number(store.lat)) && Number.isFinite(Number(store.lng));
+}
+
+function regionPointFor(store: MapStore): [number, number] {
+  const matchedCenter = Object.entries(guangzhouRegionCenters).find(([name]) => store.region.includes(name) || store.address?.includes(name))?.[1];
+  return matchedCenter || regionCenters[store.region] || base;
 }
 
 function km(a: [number, number], b: [number, number]) {
@@ -177,7 +185,7 @@ function BaiduLayer({
         originMarker.setTitle?.("销售驻点");
         map.addOverlay(originMarker);
         const markerPoints = new Map<string, any>();
-        stores.forEach((store) => {
+        stores.filter(hasRealPoint).forEach((store) => {
           const p = pointFor(store);
           const isSelected = store.id === selectedId;
           const fill = isSelected ? "#7c3aed" : "#e8753d";
@@ -213,6 +221,28 @@ function BaiduLayer({
             label.setStyle?.({ border: "0", borderRadius: "8px", padding: "0", background: "transparent", color: "#ffffff", fontSize: "12px", lineHeight: "1.25", boxShadow: "none", whiteSpace: "nowrap" });
             label.addEventListener?.("click", () => chooseRef.current(store.id));
             map.addOverlay(label);
+          }
+        });
+        const pendingGroups = new Map<string, MapStore[]>();
+        stores.filter((store) => !hasRealPoint(store)).forEach((store) => {
+          const groupName = store.region || "未划分区域";
+          const group = pendingGroups.get(groupName) || [];
+          group.push(store);
+          pendingGroups.set(groupName, group);
+        });
+        pendingGroups.forEach((group, groupName) => {
+          const point = regionPointFor(group[0]);
+          const position = new B.Point(point[1], point[0]);
+          if (B.Label && B.Size) {
+            const label = new B.Label(`<div style="display:grid;gap:3px;min-width:104px;padding:8px 10px;border-radius:9px;background:#fff;color:#41515a;box-shadow:0 8px 22px rgba(38,54,62,.22);border:1px solid #dce5e8"><b style="font-size:11px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(groupName)}</b><span style="font-size:10px;color:#d76b39">${group.length} 家待精确定位</span></div>`, { position, offset: new B.Size(-52, -18) });
+            label.setStyle?.({ border: "0", borderRadius: "9px", padding: "0", background: "transparent", color: "#41515a", fontSize: "11px", boxShadow: "none", whiteSpace: "nowrap" });
+            label.addEventListener?.("click", () => { map.centerAndZoom(position, 14); statusRef.current(`已聚焦「${groupName}」的 ${group.length} 家待定位网点`); });
+            map.addOverlay(label);
+          } else {
+            const clusterMarker = new B.Marker(position);
+            clusterMarker.setTitle?.(`${groupName}：${group.length} 家待精确定位网点`);
+            clusterMarker.addEventListener("click", () => map.centerAndZoom(position, 14));
+            map.addOverlay(clusterMarker);
           }
         });
         const routePoints: any[] = [origin, ...route.map((item) => markerPoints.get(item.store.id)).filter(Boolean)];
@@ -334,6 +364,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
   onLocationStatus?: (message: string) => void;
 }) {
   const route = useMemo(() => buildRoute(stores), [stores]);
+  const exactPointCount = useMemo(() => stores.filter(hasRealPoint).length, [stores]);
   const [baiduReady, setBaiduReady] = useState(false);
   const [expandedId, setExpandedId] = useState("");
   const [detailDraft, setDetailDraft] = useState<MapStore | null>(null);
@@ -429,7 +460,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
           <aside className="visit-plan-panel" aria-label="推荐拜访规划">
             <small>推荐拜访规划</small>
             <b>本轮建议走访 {route.length} 家</b>
-            <p>综合门店优先级、拜访状态与相邻距离自动排序。</p>
+            <p>{exactPointCount ? `已精确定位 ${exactPointCount} 家；其余网点已按销售区域归集。` : "请点击门店，系统会按详细地址逐个完成精确定位。"}</p>
             <div><span>预计行程</span><strong>{route.reduce((total, item) => total + item.distance, 0).toFixed(1)} km</strong></div>
             <button className={routeVisible ? "active" : ""} onClick={() => setRouteVisible((visible) => !visible)} aria-pressed={routeVisible}>{routeVisible ? "隐藏地图路线" : "在地图上显示路线"}</button>
           </aside>
