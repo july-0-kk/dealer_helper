@@ -2,11 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Mic, Pause, Plus, Sparkles, Square, X } from "lucide-react";
-import type { MapStore } from "./StoreMap";
+import type { MapStore, ProductInsight } from "./StoreMap";
 
 type ChangeType = "增加" | "减少" | "后续补货";
-type ProductChange = { id: string; product: string; type: ChangeType; reason: string };
+type ProductSignal = ProductInsight["signal"];
+type ProductChange = { id: string; product: string; type: ChangeType; reason: string; signal: ProductSignal; expectation: string };
 const LOCAL_OLLAMA_URL = "http://127.0.0.1:11434";
+
+function defaultSignal(type: ChangeType, reason: string): ProductSignal {
+  if (type === "减少") return "放缓";
+  if (type === "后续补货" || /(热销|好卖|卖得快|销量好|缺货|紧俏)/.test(reason)) return "热销";
+  return "待观察";
+}
+
+function defaultExpectation(type: ChangeType, product: string) {
+  if (type === "减少") return `下次拜访核对 ${product} 的库存与替代品`;
+  if (type === "后续补货") return `下次拜访前确认 ${product} 的到货和陈列`;
+  return `建议增加 ${product} 的铺货与陈列，观察后续动销`;
+}
 
 function parseModelSuggestions(content: string): ProductChange[] {
   const cleaned = content.replace(/```json|```/gi, "").trim();
@@ -23,6 +36,8 @@ function parseModelSuggestions(content: string): ProductChange[] {
       product: row.product.trim(),
       type: row.type as ChangeType,
       reason: typeof row.reason === "string" ? row.reason.slice(0, 48) : "根据拜访谈话整理",
+      signal: ["热销", "正常", "放缓", "待观察"].includes(row.signal) ? row.signal as ProductSignal : defaultSignal(row.type as ChangeType, typeof row.reason === "string" ? row.reason : ""),
+      expectation: typeof row.expectation === "string" && row.expectation.trim() ? row.expectation.slice(0, 60) : defaultExpectation(row.type as ChangeType, row.product.trim()),
     }))
     .filter((row) => row.product.length > 0);
 }
@@ -43,7 +58,10 @@ function analyzeTranscript(text: string, products: string[]) {
   candidates.forEach((product) => {
     const around = text.slice(Math.max(0, text.indexOf(product) - 28), text.indexOf(product) + product.length + 28);
     const type: ChangeType = /(减少|下架|滞销|压货|退货)/.test(around) ? "减少" : /(后续|下次|预计|月底|下周|再补)/.test(around) ? "后续补货" : "增加";
-    if (text.includes(product)) result.push({ id: `${product}-${type}`, product, type, reason: around || "从拜访谈话中识别" });
+    if (text.includes(product)) {
+      const reason = around || "从拜访谈话中识别";
+      result.push({ id: `${product}-${type}`, product, type, reason, signal: defaultSignal(type, reason), expectation: defaultExpectation(type, product) });
+    }
   });
   return result;
 }
@@ -143,7 +161,7 @@ export default function VisitAssistant({ store, onClose, onSave }: { store: MapS
             { role: "system", content: "你是防水产品渠道拜访助手。只输出合法 JSON，不要输出解释、Markdown 或其他字段。" },
             {
               role: "user",
-              content: `请根据以下门店拜访谈话，提取明确的产品动作。\n门店：${store.name}\n现有产品：${store.products.join("、") || "暂无记录"}\n谈话记录：${text}\n\n仅输出：{"suggestions":[{"product":"产品名","type":"增加|减少|后续补货","reason":"不超过24字"}]}。没有明确产品动作时 suggestions 为空数组。不得编造谈话中不存在的产品。`,
+              content: `请根据以下门店拜访谈话，生成可落地的产品经营模块。\n门店：${store.name}\n现有产品：${store.products.join("、") || "暂无记录"}\n谈话记录：${text}\n\n仅输出：{"suggestions":[{"product":"产品名","type":"增加|减少|后续补货","signal":"热销|正常|放缓|待观察","reason":"不超过24字","expectation":"下一步预期，不超过30字"}]}。每个产品只输出一条。没有明确信息时 suggestions 为空数组。不得编造谈话中不存在的产品。`,
             },
           ],
         }),
@@ -167,13 +185,17 @@ export default function VisitAssistant({ store, onClose, onSave }: { store: MapS
   function applyChanges() {
     const activeProducts = new Set(store.products);
     const pendingProducts = new Set(store.pendingProducts || []);
+    const insightMap = new Map((store.productInsights || []).map((item) => [item.product, item]));
+    const updatedAt = new Date().toISOString();
     suggestions.forEach((item) => {
       if (!item.product.trim()) return;
-      if (item.type === "增加") activeProducts.add(item.product.trim());
-      if (item.type === "减少") activeProducts.delete(item.product.trim());
-      if (item.type === "后续补货") pendingProducts.add(item.product.trim());
+      const product = item.product.trim();
+      if (item.type === "增加") activeProducts.add(product);
+      if (item.type === "减少") activeProducts.delete(product);
+      if (item.type === "后续补货") { activeProducts.add(product); pendingProducts.add(product); }
+      insightMap.set(product, { product, action: item.type === "后续补货" ? "补货" : item.type, signal: item.signal, reason: item.reason || "根据拜访谈话整理", expectation: item.expectation || defaultExpectation(item.type, product), updatedAt });
     });
-    onSave({ ...store, products: [...activeProducts], pendingProducts: [...pendingProducts], lastVisitTranscript: transcript, lastVisitAt: new Date().toISOString(), visit: `今天 ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` });
+    onSave({ ...store, products: [...activeProducts], pendingProducts: [...pendingProducts], productInsights: [...insightMap.values()], lastVisitTranscript: transcript, lastVisitAt: updatedAt, visit: `今天 ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` });
     onClose();
   }
 
@@ -188,8 +210,9 @@ export default function VisitAssistant({ store, onClose, onSave }: { store: MapS
       <p className="recording-notice">{notice}</p>
       {audioUrl && <audio className="visit-audio" controls src={audioUrl}>当前浏览器不支持录音回放。</audio>}
       <label className="transcript-label">谈话记录<textarea value={`${transcript}${interim}`} onChange={(event) => { setTranscript(event.target.value); setInterim(""); }} placeholder="开始录音后，实时转写会显示在这里；也可以手动补充关键谈话。" /></label>
-      <div className="assistant-actions"><button className="analyze-button" onClick={runAnalysis} disabled={analyzing}><Sparkles size={15} />{analyzing ? "本机模型分析中…" : modelConnected === false ? "重新连接本机模型" : "用本机模型分析"}</button><button onClick={() => setSuggestions((value) => [...value, { id: String(Date.now()), product: "", type: "增加", reason: "手动补充" }])}><Plus size={15} />添加建议</button></div>
+      <div className="assistant-actions"><button className="analyze-button" onClick={runAnalysis} disabled={analyzing}><Sparkles size={15} />{analyzing ? "本机模型分析中…" : modelConnected === false ? "重新连接本机模型" : "用本机模型分析"}</button><button onClick={() => setSuggestions((value) => [...value, { id: String(Date.now()), product: "", type: "增加", reason: "手动补充", signal: "待观察", expectation: "下次拜访观察实际动销" }])}><Plus size={15} />添加建议</button></div>
       <div className="suggestion-list"><div><b>产品调整建议</b><small>可修改后再同步</small></div>{suggestions.length ? suggestions.map((item, index) => <article key={item.id}><input value={item.product} placeholder="产品名称" onChange={(event) => setSuggestions((value) => value.map((row, rowIndex) => rowIndex === index ? { ...row, product: event.target.value } : row))} /><select value={item.type} onChange={(event) => setSuggestions((value) => value.map((row, rowIndex) => rowIndex === index ? { ...row, type: event.target.value as ChangeType } : row))}><option>增加</option><option>减少</option><option>后续补货</option></select><input value={item.reason} placeholder="原因" onChange={(event) => setSuggestions((value) => value.map((row, rowIndex) => rowIndex === index ? { ...row, reason: event.target.value } : row))} /><button onClick={() => setSuggestions((value) => value.filter((_, rowIndex) => rowIndex !== index))} aria-label="删除建议"><Pause size={13} /></button></article>) : <p>尚无建议。完成录音后点击“分析产品动作”。</p>}</div>
+      {!!suggestions.length && <section className="module-preview" aria-label="AI 产品经营模块预览"><div><b>AI 产品经营模块</b><small>确认后将写入门店档案</small></div><div className="module-preview-grid">{suggestions.map((item) => <article key={`module-${item.id}`} className={item.type}><header><strong>{item.product || "待填写产品"}</strong><span>{item.type === "后续补货" ? "补货计划" : item.type === "增加" ? "建议增加" : "建议减少"}</span></header><p>{item.signal} · {item.reason || "待补充销售判断"}</p><small>预期：{item.expectation || defaultExpectation(item.type, item.product || "该产品")}</small></article>)}</div></section>}
       <footer><span>后续补货会作为待跟进产品保存在门店详情中。</span><button className="apply-button" onClick={applyChanges}>确认并同步门店</button></footer>
     </section>
   </div>;

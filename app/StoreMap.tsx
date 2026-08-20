@@ -10,6 +10,15 @@ declare global {
   }
 }
 
+export type ProductInsight = {
+  product: string;
+  action: "增加" | "减少" | "补货";
+  signal: "热销" | "正常" | "放缓" | "待观察";
+  reason: string;
+  expectation: string;
+  updatedAt: string;
+};
+
 export type MapStore = {
   id: string;
   name: string;
@@ -20,6 +29,7 @@ export type MapStore = {
   manager?: string;
   createdAt?: string;
   pendingProducts?: string[];
+  productInsights?: ProductInsight[];
   lastVisitTranscript?: string;
   lastVisitAt?: string;
   level: string;
@@ -455,6 +465,19 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
                   <div className="route-detail-meta"><span>终端类型：{draft.terminalType || "未填写"}</span><span>客户经理：{draft.manager || draft.dealer}</span><span>{draft.createdAt ? `创建时间：${draft.createdAt}` : `最近拜访：${draft.visit}`}</span></div>
                   <div className="detail-products">{draft.products.length ? draft.products.map((product) => <span key={product}>{product}</span>) : <small>暂无产品记录</small>}</div>
                   {!!draft.pendingProducts?.length && <div className="pending-products"><small>后续补货</small>{draft.pendingProducts.map((product) => <span key={product}>{product}</span>)}</div>}
+                  {!!draft.productInsights?.length && <section className="product-operation-board" aria-label="产品经营看板">
+                    <div className="product-board-title"><b>AI 产品经营看板</b><small>最近一次拜访分析</small></div>
+                    <div className="product-board-summary">
+                      <span className="increase">建议增加 {draft.productInsights.filter((item) => item.action === "增加").length}</span>
+                      <span className="replenish">计划补货 {draft.productInsights.filter((item) => item.action === "补货").length}</span>
+                      <span className="reduce">建议减少 {draft.productInsights.filter((item) => item.action === "减少").length}</span>
+                    </div>
+                    <div className="product-insight-list">{draft.productInsights.map((item) => <article key={`${item.product}-${item.updatedAt}`} className={`product-insight ${item.action}`}>
+                      <div><b>{item.product}</b><span>{item.action}</span></div>
+                      <p>{item.signal} · {item.reason}</p>
+                      <small>预期：{item.expectation}</small>
+                    </article>)}</div>
+                  </section>}
                   <div className="route-detail-footer"><button className="route-save" onClick={saveDetail}><Save size={14} />保存门店详情</button><button className="route-visit" onClick={(event) => { event.stopPropagation(); setVisitStore(draft); }}><Mic size={14} />智能拜访记录</button></div>
                 </div>}
               </article>;

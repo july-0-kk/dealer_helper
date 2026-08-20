@@ -2143,6 +2143,42 @@ body {
 .suggestion-list article { display: grid; grid-template-columns: minmax(80px, 1fr) 92px minmax(120px, 1.4fr) 28px; gap: 6px; margin-top: 7px; }
 .suggestion-list input, .suggestion-list select { min-width: 0; border: 1px solid #dce3e6; border-radius: 5px; padding: 6px; color: #43525a; background: #fff; font-size: 10px; }
 .suggestion-list article button { border: 0; border-radius: 5px; background: #f3f4f5; color: #738087; cursor: pointer; }
+.module-preview { margin: 12px 22px 0; padding: 12px; border: 1px solid #e3dcf3; border-radius: 9px; background: linear-gradient(135deg, #fcfaff, #fff); }
+.module-preview > div:first-child { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.module-preview > div:first-child b { color: #54318f; font-size: 11px; }
+.module-preview > div:first-child small { color: #8d83a6; font-size: 10px; }
+.module-preview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.module-preview article { min-width: 0; padding: 9px; border: 1px solid #ece7f7; border-radius: 7px; background: #fff; }
+.module-preview article.增加 { border-color: #cfe9dd; background: #fbfffc; }
+.module-preview article.减少 { border-color: #f3d7d6; background: #fffafa; }
+.module-preview article.后续补货 { border-color: #ead9ae; background: #fffdf7; }
+.module-preview article header { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0; border: 0; }
+.module-preview article strong { overflow: hidden; color: #394952; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.module-preview article span { flex: none; padding: 2px 4px; border-radius: 4px; background: #ede7fa; color: #6841ad; font-size: 9px; }
+.module-preview article.增加 span { background: #ddf2e6; color: #2e8b59; }
+.module-preview article.减少 span { background: #f8e2e1; color: #b75a58; }
+.module-preview article.后续补货 span { background: #fbefce; color: #9b6b20; }
+.module-preview article p { min-height: 28px; margin: 6px 0 4px; color: #68777f; font-size: 9px; line-height: 1.5; }
+.module-preview article small { display: block; color: #8b979d; font-size: 9px; line-height: 1.45; }
+.product-operation-board { margin-top: 9px; padding: 9px; border: 1px solid #e5def3; border-radius: 8px; background: #fcfbff; }
+.product-board-title { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.product-board-title b { color: #5e3b9b; font-size: 10px; }
+.product-board-title small { color: #978ba9; font-size: 8px; }
+.product-board-summary { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0; }
+.product-board-summary span { padding: 3px 5px; border-radius: 4px; font-size: 8px; }
+.product-board-summary .increase { background: #e2f2e8; color: #37835a; }
+.product-board-summary .replenish { background: #fcf0d3; color: #9d7026; }
+.product-board-summary .reduce { background: #f7e2e2; color: #af5f5b; }
+.product-insight-list { display: grid; gap: 5px; }
+.product-insight { padding: 7px; border: 1px solid #ebe6f3; border-left: 3px solid #9a79d8; border-radius: 5px; background: #fff; }
+.product-insight.增加 { border-left-color: #58af7a; }
+.product-insight.补货 { border-left-color: #d79b36; }
+.product-insight.减少 { border-left-color: #d27370; }
+.product-insight > div { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.product-insight b { color: #3e4c54; font-size: 9px; }
+.product-insight span { color: #7a55b5; font-size: 8px; }
+.product-insight p, .product-insight small { display: block; margin: 3px 0 0; color: #7f8b91; font-size: 8px; line-height: 1.4; }
+.product-insight small { color: #8f78b7; }
 .visit-assistant footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 14px 22px 20px; border-top: 1px solid #edf0f1; }
 .visit-assistant footer span { color: #8b969c; font-size: 10px; }
 .apply-button { border: 0; border-radius: 7px; padding: 9px 12px; background: #7042c6; color: #fff; font-size: 11px; cursor: pointer; }
@@ -2173,4 +2209,5 @@ body {
   .route-list { max-height: 420px; }
   .map-wrap, .baidu-layer, .store-map { height: 520px; }
   .visit-plan-panel { width: 228px; }
+  .module-preview-grid { grid-template-columns: 1fr; }
 }
