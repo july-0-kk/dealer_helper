@@ -559,7 +559,8 @@
   border: 1px solid #e2e7ea;
   border-radius: 10px;
   background: #fff;
-  min-height: 790px;
+  height: min(790px, calc(100vh - 140px));
+  min-height: 590px;
   overflow: hidden;
 }
 .directory-v3 {
@@ -567,6 +568,8 @@
   padding: 25px 22px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 .directory-head {
   display: flex;
@@ -607,6 +610,11 @@
 }
 .directory-list {
   border-top: 1px solid #edf0f2;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .directory-list button {
   width: 100%;
@@ -673,6 +681,9 @@
 }
 .profile-v3 {
   padding: 28px 32px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .profile-head {
   display: flex;
@@ -1133,6 +1144,7 @@
   }
   .workspace-v3 {
     display: block;
+    height: auto;
     margin: 10px;
     border-radius: 8px;
   }
@@ -1140,6 +1152,7 @@
     border-right: 0;
     border-bottom: 1px solid #e5eaed;
     min-height: 0;
+    max-height: 440px;
   }
   .profile-v3 {
     padding: 22px 18px;
