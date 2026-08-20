@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 
 declare global {
   interface Window {
@@ -202,9 +203,12 @@ function BaiduLayer({
   );
 }
 
-export default function StoreMap({ stores, onChoose, editMode = false, addMode = false, onAddAt = () => undefined, onMove = () => undefined }: {
+export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateStore, onDeleteStore, editMode = false, addMode = false, onAddAt = () => undefined, onMove = () => undefined }: {
   stores: MapStore[];
   onChoose: (id: string) => void;
+  selectedId?: string;
+  onUpdateStore?: (store: MapStore) => void;
+  onDeleteStore?: (id: string) => void;
   editMode?: boolean;
   addMode?: boolean;
   onAddAt?: (point: { lat: number; lng: number }) => void;
@@ -212,11 +216,75 @@ export default function StoreMap({ stores, onChoose, editMode = false, addMode =
 }) {
   const route = useMemo(() => buildRoute(stores), [stores]);
   const [baiduReady, setBaiduReady] = useState(false);
+  const [expandedId, setExpandedId] = useState("");
+  const [detailDraft, setDetailDraft] = useState<MapStore | null>(null);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const store = stores.find((item) => item.id === selectedId);
+    if (store) {
+      setExpandedId(store.id);
+      setDetailDraft(store);
+    }
+  }, [selectedId, stores]);
+
+  function toggleDetail(store: MapStore) {
+    onChoose(store.id);
+    if (expandedId === store.id) {
+      setExpandedId("");
+      return;
+    }
+    setExpandedId(store.id);
+    setDetailDraft(store);
+  }
+
+  function saveDetail(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (detailDraft) onUpdateStore?.(detailDraft);
+  }
+
+  function removeStore(event: React.MouseEvent<HTMLButtonElement>, id: string) {
+    event.stopPropagation();
+    if (confirm("确定删除这个门店及其地图点位吗？")) onDeleteStore?.(id);
+  }
+
   return (
     <section className="map-page">
-      <div className="map-summary"><div><small>智能路线规划</small><h1>本轮推荐拜访</h1><p>结合门店经营优先级、拜访间隔与真实地图距离，自动规划最多 10 家门店。</p></div><div className="route-stats"><span><b>{route.length}</b> 家门店</span><span><b>{route.reduce((n, r) => n + r.distance, 0).toFixed(1)}</b> km 估算距离</span></div></div>
       <div className="map-layout">
-        <aside className="route-list"><div className="route-label"><b>推荐顺序</b><span>每轮最多 10 家</span></div><div className="route-origin"><i>●</i><span>销售驻点<br /><small>杭州市中心</small></span></div>{route.map((r, i) => <button key={r.store.id} onClick={() => onChoose(r.store.id)}><b className="route-number">{String(i + 1).padStart(2, "0")}</b><span className="route-info"><strong>{r.store.name}</strong><small>{r.store.region} · 距上一站 {r.distance.toFixed(1)} km</small><em>{r.reasons.join(" · ") || "常规拜访"}</em></span><b className="route-score">{r.score}</b></button>)}</aside>
+        <aside className="route-list">
+          <div className="route-panel-heading"><div><small>今日路线</small><h1>本轮推荐拜访</h1><p>按优先级与距离排序</p></div><div className="route-panel-stats"><b>{route.length}</b><span>家门店</span><strong>{route.reduce((n, r) => n + r.distance, 0).toFixed(1)}</strong><span>km</span></div></div>
+          <div className="route-label"><b>推荐顺序</b><span>点开箭头查看详情</span></div>
+          <div className="route-origin"><MapPin size={15} strokeWidth={2.2} /><span>销售驻点<br /><small>杭州市中心</small></span></div>
+          <div className="route-cards">
+            {route.map((r, i) => {
+              const open = expandedId === r.store.id;
+              const draft = open && detailDraft?.id === r.store.id ? detailDraft : r.store;
+              return <article className={`route-card ${open ? "open" : ""}`} key={r.store.id}>
+                <div className="route-row">
+                  <button className="route-select" onClick={() => { onChoose(r.store.id); if (!open) toggleDetail(r.store); }} aria-label={`定位 ${r.store.name}`}>
+                    <b className="route-number">{String(i + 1).padStart(2, "0")}</b>
+                    <span className="route-info"><strong>{r.store.name}</strong><small>{r.store.region} · 距上一站 {r.distance.toFixed(1)} km</small><em>{r.reasons.join(" · ") || "常规拜访"}</em></span>
+                    <b className="route-score">{r.score}</b>
+                  </button>
+                  <button className="route-expand" onClick={() => toggleDetail(r.store)} aria-label={open ? "收起门店详情" : "展开门店详情"} aria-expanded={open}>{open ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</button>
+                </div>
+                {open && <div className="route-detail">
+                  <div className="route-detail-head"><div><small>门店详情</small><b>{draft.name}</b></div><button onClick={(event) => removeStore(event, r.store.id)} title="删除门店"><Trash2 size={14} />删除</button></div>
+                  <div className="route-detail-grid">
+                    <label>门店名称<input value={draft.name} onChange={(event) => setDetailDraft({ ...draft, name: event.target.value })} /></label>
+                    <label>区域<input value={draft.region} onChange={(event) => setDetailDraft({ ...draft, region: event.target.value })} /></label>
+                    <label className="detail-wide">详细地址<input value={draft.address || ""} placeholder="填写门店地址" onChange={(event) => setDetailDraft({ ...draft, address: event.target.value })} /></label>
+                    <label>纬度<input type="number" step="0.000001" value={draft.lat ?? ""} onChange={(event) => setDetailDraft({ ...draft, lat: Number(event.target.value) })} /></label>
+                    <label>经度<input type="number" step="0.000001" value={draft.lng ?? ""} onChange={(event) => setDetailDraft({ ...draft, lng: Number(event.target.value) })} /></label>
+                  </div>
+                  <div className="route-detail-meta"><span>经销商：{draft.dealer}</span><span>最近拜访：{draft.visit}</span></div>
+                  <div className="detail-products">{draft.products.length ? draft.products.map((product) => <span key={product}>{product}</span>) : <small>暂无产品记录</small>}</div>
+                  <button className="route-save" onClick={saveDetail}><Save size={14} />保存门店详情</button>
+                </div>}
+              </article>;
+            })}
+          </div>
+        </aside>
         <div className={`map-wrap ${baiduReady ? "baidu-active" : ""}`}>
           <BaiduLayer stores={stores} route={route} onChoose={onChoose} onReady={setBaiduReady} editMode={editMode} addMode={addMode} onAddAt={onAddAt} onMove={onMove} />
           <div className="map-tools"><span className={addMode ? "active" : ""}>{addMode ? "请在地图上点击新增位置" : editMode ? "拖动门店标记即可修改位置" : "真实百度地图 · 驾车路线"}</span></div>

@@ -2053,3 +2053,67 @@ body {
     display: none;
   }
 }
+
+/* 地图工作区：在一屏内完成路线浏览、地图查看与门店详情维护 */
+.map-shell { height: 100vh; overflow: hidden; }
+.map-topbar { height: 64px; padding: 0 42px; }
+.map-actionbar { max-width: calc(100vw - 72px); height: 54px; box-sizing: border-box; margin: 10px auto; }
+.map-page { max-width: calc(100vw - 72px); height: calc(100vh - 148px); min-height: 0; margin: 0 auto; }
+.map-summary { display: none; }
+.map-layout { height: 100%; min-height: 0; grid-template-columns: minmax(360px, 410px) minmax(0, 1fr); border-radius: 12px; }
+.route-list { min-height: 0; padding: 14px; background: #fbfcfc; }
+.route-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 2px 13px; border-bottom: 1px solid #e7edef; }
+.route-panel-heading small { color: #e37640; font-size: 10px; letter-spacing: .05em; }
+.route-panel-heading h1 { margin: 4px 0 3px; color: #1d2a31; font-size: 17px; letter-spacing: -.03em; }
+.route-panel-heading p { margin: 0; color: #90a0a7; font-size: 10px; }
+.route-panel-stats { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 5px; row-gap: 1px; text-align: right; }
+.route-panel-stats b, .route-panel-stats strong { color: #ea743d; font-size: 17px; line-height: 1; }
+.route-panel-stats strong { font-size: 14px; }
+.route-panel-stats span { color: #9ba7ad; font-size: 9px; }
+.route-label { margin: 13px 2px 9px; }
+.route-origin { margin-bottom: 9px; padding: 9px 10px; }
+.route-origin svg { flex: 0 0 auto; color: #e6753d; }
+.route-cards { display: grid; gap: 7px; padding-bottom: 10px; }
+.route-card { overflow: hidden; border: 1px solid #e7edef; border-radius: 8px; background: #fff; box-shadow: 0 1px 0 #17242d05; }
+.route-card.open { border-color: #edbc9f; box-shadow: 0 5px 16px #e1763b14; }
+.route-row { display: flex; align-items: stretch; min-height: 68px; }
+.route-select { width: 100%; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 9px 5px 9px 10px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.route-select:hover { background: #fffaf7; }
+.route-expand { width: 35px; display: grid; place-items: center; flex: 0 0 35px; border: 0; border-left: 1px solid #eef1f2; background: #fff; color: #87979e; cursor: pointer; }
+.route-expand:hover { background: #fff5ef; color: #dd713b; }
+.route-card .route-number { width: 23px; color: #e86f38; font-size: 11px; }
+.route-card .route-info { min-width: 0; }
+.route-card .route-info strong { overflow: hidden; color: #24343d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.route-card .route-info small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-card .route-score { margin-right: 3px; font-size: 13px; }
+.route-detail { padding: 11px; border-top: 1px solid #f0e4dd; background: #fffaf7; }
+.route-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.route-detail-head small, .route-detail-head b { display: block; }
+.route-detail-head small { color: #d87442; font-size: 9px; }
+.route-detail-head b { margin-top: 2px; color: #35464e; font-size: 11px; }
+.route-detail-head button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: #b4614f; font-size: 10px; cursor: pointer; }
+.route-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.route-detail-grid label { display: grid; gap: 4px; color: #7e8b91; font-size: 9px; }
+.route-detail-grid .detail-wide { grid-column: 1 / -1; }
+.route-detail-grid input { width: 100%; box-sizing: border-box; border: 1px solid #e3d8d1; border-radius: 5px; padding: 6px 7px; background: #fff; color: #30414a; font-size: 10px; outline: none; }
+.route-detail-grid input:focus { border-color: #e98d5d; box-shadow: 0 0 0 2px #e98d5d1f; }
+.route-detail-meta { display: grid; gap: 3px; margin-top: 8px; color: #849299; font-size: 9px; }
+.detail-products { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.detail-products span { padding: 3px 5px; border-radius: 4px; background: #f5e5da; color: #b9653d; font-size: 9px; }
+.detail-products small { color: #99a5aa; font-size: 9px; }
+.route-save { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; border: 0; border-radius: 5px; padding: 7px 9px; background: #eb743c; color: #fff; font-size: 10px; cursor: pointer; }
+.map-wrap, .baidu-layer, .store-map { height: 100%; min-height: 0; }
+.baidu-layer { z-index: 4; }
+.map-tools { top: 14px; right: 14px; }
+.map-legend { z-index: 6; }
+.map-note { z-index: 6; }
+.map-toast { z-index: 20; }
+@media (max-width: 900px) {
+  .map-shell { height: auto; overflow: visible; }
+  .map-actionbar, .map-page { max-width: none; }
+  .map-actionbar { height: auto; margin: 12px; }
+  .map-page { height: auto; margin: 0 12px 20px; }
+  .map-layout { height: auto; grid-template-columns: 1fr; }
+  .route-list { max-height: 420px; }
+  .map-wrap, .baidu-layer, .store-map { height: 520px; }
+}

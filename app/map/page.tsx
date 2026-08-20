@@ -51,7 +51,6 @@ export default function MapPage() {
     [selected, setSelected] = useState(""),
     [editMode, setEditMode] = useState(false),
     [addMode, setAddMode] = useState(false),
-    [draft, setDraft] = useState<MapStore | null>(null),
     [notice, setNotice] = useState("");
   useEffect(() => {
     const raw = localStorage.getItem("landun-stores-v2");
@@ -63,14 +62,12 @@ export default function MapPage() {
   }
   function choose(id: string) {
     setSelected(id);
-    setDraft(stores.find((s) => s.id === id) || null);
   }
   function addAt(point: { lat: number; lng: number }) {
     const id = `MAP${String(Date.now()).slice(-6)}`;
     const store: MapStore = { id, name: "新建门店", region: "中心区", dealer: "待关联代理商", owner: "待填写", level: "A", products: [], visit: "尚未拜访", status: "待跟进", address: "", lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) };
     persist([store, ...stores]);
     setSelected(id);
-    setDraft(store);
     setAddMode(false);
     setEditMode(true);
     setNotice("已新增地图点位，请补充门店详情");
@@ -78,22 +75,18 @@ export default function MapPage() {
   function moveStore(id: string, point: { lat: number; lng: number }) {
     const next = stores.map((s) => s.id === id ? { ...s, lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) } : s);
     persist(next);
-    setDraft((d) => d?.id === id ? { ...d, lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) } : d);
   }
-  function saveDraft() {
-    if (!draft) return;
-    const next = stores.map((s) => s.id === draft.id ? { ...draft, lat: Number(draft.lat), lng: Number(draft.lng) } : s);
+  function updateStore(store: MapStore) {
+    const lat = Number(store.lat), lng = Number(store.lng);
+    const next = stores.map((s) => s.id === store.id ? { ...store, lat: Number.isFinite(lat) ? lat : undefined, lng: Number.isFinite(lng) ? lng : undefined } : s);
     persist(next);
     setNotice("门店详情和位置已保存");
   }
-  function deleteDraft() {
-    if (!draft || !confirm(`确定删除「${draft.name}」吗？`)) return;
-    persist(stores.filter((s) => s.id !== draft.id));
-    setDraft(null);
+  function deleteStore(id: string) {
+    persist(stores.filter((s) => s.id !== id));
     setSelected("");
     setNotice("门店点位已删除");
   }
-  const selectedStore = stores.find((s) => s.id === selected);
   return (
     <main className="map-shell">
       <header className="map-topbar">
@@ -115,10 +108,9 @@ export default function MapPage() {
           <a href="/">返回工作台</a>
         </div>
       </header>
-      <div className="map-actionbar"><div><b>点位管理</b><span>{editMode ? "拖动地图标记修改坐标" : "开启编辑后可直接维护位置"}</span></div><button className={editMode ? "active" : ""} onClick={() => { setEditMode((v) => !v); setAddMode(false); }}>{editMode ? "完成编辑" : "编辑点位"}</button><button className={addMode ? "active" : ""} onClick={() => { setAddMode((v) => !v); setEditMode(true); }}>{addMode ? "取消新增" : "＋ 地图上新增"}</button></div>
-      <StoreMap stores={stores} onChoose={choose} editMode={editMode} addMode={addMode} onAddAt={addAt} onMove={moveStore} />
-      {selectedStore && draft && <section className="map-editor-card"><div className="map-editor-head"><div><small>门店详情 · 位置维护</small><h2>{selectedStore.name}</h2></div><button onClick={deleteDraft}>删除点位</button></div><div className="map-editor-grid"><label>门店名称<input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label><label>区域<input value={draft.region} onChange={(e) => setDraft({ ...draft, region: e.target.value })} /></label><label className="wide">门店地址<input value={draft.address || ""} onChange={(e) => setDraft({ ...draft, address: e.target.value })} placeholder="填写详细地址，便于导航" /></label><label>纬度（百度坐标）<input type="number" step="0.000001" value={draft.lat ?? ""} onChange={(e) => setDraft({ ...draft, lat: Number(e.target.value) })} /></label><label>经度（百度坐标）<input type="number" step="0.000001" value={draft.lng ?? ""} onChange={(e) => setDraft({ ...draft, lng: Number(e.target.value) })} /></label></div><div className="map-editor-footer"><span>地图上拖动标记后，坐标会自动保存到此处</span><button onClick={saveDraft}>保存门店详情</button></div></section>}
-      {(notice || selected) && <div className="map-toast">{notice || `已定位：${selectedStore?.name || "门店"}`}</div>}
+      <div className="map-actionbar"><div><b>点位管理</b><span>{editMode ? "拖动地图标记修改坐标" : "点开左侧箭头查看和编辑门店详情"}</span></div><button className={editMode ? "active" : ""} onClick={() => { setEditMode((v) => !v); setAddMode(false); }}>{editMode ? "完成编辑" : "编辑点位"}</button><button className={addMode ? "active" : ""} onClick={() => { setAddMode((v) => !v); setEditMode(true); }}>{addMode ? "取消新增" : "＋ 地图上新增"}</button></div>
+      <StoreMap stores={stores} onChoose={choose} selectedId={selected} onUpdateStore={updateStore} onDeleteStore={deleteStore} editMode={editMode} addMode={addMode} onAddAt={addAt} onMove={moveStore} />
+      {notice && <div className="map-toast">{notice}</div>}
     </main>
   );
 }
