@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, LocateFixed, MapPin, MapPinned, Save, Search, Trash2 } from "lucide-react";
 
 declare global {
   interface Window {
@@ -96,7 +96,7 @@ export function buildRoute(stores: MapStore[]) {
 }
 
 function BaiduLayer({
-  stores, route, onChoose, onReady, editMode, addMode, onAddAt, onMove,
+  stores, route, onChoose, onReady, editMode, addMode, trafficEnabled, focusTarget, focusNonce, geocodeRequest, onAddAt, onMove, onLocationStatus,
 }: {
   stores: MapStore[];
   route: RouteItem[];
@@ -104,15 +104,21 @@ function BaiduLayer({
   onReady: (ready: boolean) => void;
   editMode: boolean;
   addMode: boolean;
-  onAddAt: (point: { lat: number; lng: number }) => void;
-  onMove: (id: string, point: { lat: number; lng: number }) => void;
+  trafficEnabled: boolean;
+  focusTarget: string;
+  focusNonce: number;
+  geocodeRequest: { id: string; kind: "address" | "coordinates"; address?: string; lat?: number; lng?: number; nonce: number } | null;
+  onAddAt: (point: { lat: number; lng: number; address?: string }) => void;
+  onMove: (id: string, point: { lat: number; lng: number; address?: string }) => void;
+  onLocationStatus: (message: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const chooseRef = useRef(onChoose), addRef = useRef(onAddAt), moveRef = useRef(onMove), addModeRef = useRef(addMode);
+  const mapRef = useRef<any>(null);
+  const chooseRef = useRef(onChoose), addRef = useRef(onAddAt), moveRef = useRef(onMove), statusRef = useRef(onLocationStatus), addModeRef = useRef(addMode);
   const [ak, setAk] = useState(BAIDU_MAP_AK);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  useEffect(() => { chooseRef.current = onChoose; addRef.current = onAddAt; moveRef.current = onMove; addModeRef.current = addMode; }, [onChoose, onAddAt, onMove, addMode]);
+  useEffect(() => { chooseRef.current = onChoose; addRef.current = onAddAt; moveRef.current = onMove; statusRef.current = onLocationStatus; addModeRef.current = addMode; }, [onChoose, onAddAt, onMove, onLocationStatus, addMode]);
   useEffect(() => { localStorage.setItem("landun-baidu-map-ak", BAIDU_MAP_AK); setAk(BAIDU_MAP_AK); }, []);
 
   useEffect(() => {
@@ -125,10 +131,25 @@ function BaiduLayer({
         host.current.innerHTML = "";
         const B = window.BMapGL;
         const map = new B.Map(host.current);
+        mapRef.current = map;
         map.centerAndZoom(new B.Point(base[1], base[0]), 12);
         map.enableScrollWheelZoom(true);
+        if (B.ZoomControl) map.addControl(new B.ZoomControl());
+        if (B.ScaleControl) map.addControl(new B.ScaleControl());
+        if (trafficEnabled) map.setTrafficOn?.();
+        else map.setTrafficOff?.();
+        const resolveAddress = (point: any, done: (address: string) => void) => {
+          if (!B.Geocoder) { done(""); return; }
+          const geocoder = new B.Geocoder();
+          geocoder.getLocation(point, (result: any) => done(result?.address || result?.formatted_address || ""));
+        };
         map.addEventListener("click", (event: any) => {
-          if (addModeRef.current && event.latlng) addRef.current({ lat: event.latlng.lat, lng: event.latlng.lng });
+          if (!addModeRef.current || !event.latlng) return;
+          const point = event.latlng;
+          resolveAddress(point, (address) => {
+            addRef.current({ lat: point.lat, lng: point.lng, address });
+            statusRef.current(address ? "已新增点位，并识别出门店地址" : "已新增点位，请补充门店地址");
+          });
         });
         const origin = new B.Point(base[1], base[0]);
         const originMarker = new B.Marker(origin);
@@ -142,8 +163,12 @@ function BaiduLayer({
           if (editMode && marker.enableDragging) {
             marker.enableDragging();
             marker.addEventListener("dragend", (event: any) => {
-              const point = event.point || marker.getPosition();
-              if (point) moveRef.current(store.id, { lat: point.lat, lng: point.lng });
+              const point = event.point || event.latlng || marker.getPosition();
+              if (!point) return;
+              resolveAddress(point, (address) => {
+                moveRef.current(store.id, { lat: point.lat, lng: point.lng, address });
+                statusRef.current(address ? `已更新「${store.name}」的位置和地址` : `已更新「${store.name}」的位置`);
+              });
             });
           }
           marker.addEventListener("click", () => chooseRef.current(store.id));
@@ -186,7 +211,47 @@ function BaiduLayer({
       }
     }
     return () => { cancelled = true; onReady(false); };
-  }, [ak, editMode, route, stores, onReady]);
+  }, [ak, editMode, route, stores, onReady, trafficEnabled]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const B = window.BMapGL;
+    if (!map || !B || !focusNonce || !focusTarget) return;
+    const point = focusTarget === "origin" ? base : (() => {
+      const store = stores.find((item) => item.id === focusTarget);
+      return store ? pointFor(store) : null;
+    })();
+    if (!point) return;
+    map.centerAndZoom(new B.Point(point[1], point[0]), focusTarget === "origin" ? 12 : 16);
+  }, [focusTarget, focusNonce, stores]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const B = window.BMapGL;
+    if (!map || !B || !geocodeRequest || !B.Geocoder) return;
+    const geocoder = new B.Geocoder();
+    if (geocodeRequest.kind === "address") {
+      const address = geocodeRequest.address?.trim();
+      if (!address) return;
+      geocoder.getPoint(address, (point: any) => {
+        if (!point) { statusRef.current("未找到该地址，请补充省、市、区后重试"); return; }
+        map.centerAndZoom(point, 16);
+        moveRef.current(geocodeRequest.id, { lat: point.lat, lng: point.lng, address });
+        chooseRef.current(geocodeRequest.id);
+        statusRef.current("已按地址更新地图点位");
+      });
+      return;
+    }
+    const lat = Number(geocodeRequest.lat), lng = Number(geocodeRequest.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const point = new B.Point(lng, lat);
+    geocoder.getLocation(point, (result: any) => {
+      const address = result?.address || result?.formatted_address || "";
+      map.centerAndZoom(point, 16);
+      moveRef.current(geocodeRequest.id, { lat, lng, address });
+      statusRef.current(address ? "已按坐标更新门店地址" : "已更新坐标，未识别到详细地址");
+    });
+  }, [geocodeRequest]);
 
   function saveAk() {
     const value = draft.trim();
@@ -203,7 +268,7 @@ function BaiduLayer({
   );
 }
 
-export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateStore, onDeleteStore, editMode = false, addMode = false, onAddAt = () => undefined, onMove = () => undefined }: {
+export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateStore, onDeleteStore, editMode = false, addMode = false, trafficEnabled = false, focusTarget = "", focusNonce = 0, onAddAt = () => undefined, onMove = () => undefined, onLocationStatus = () => undefined }: {
   stores: MapStore[];
   onChoose: (id: string) => void;
   selectedId?: string;
@@ -211,13 +276,18 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
   onDeleteStore?: (id: string) => void;
   editMode?: boolean;
   addMode?: boolean;
-  onAddAt?: (point: { lat: number; lng: number }) => void;
-  onMove?: (id: string, point: { lat: number; lng: number }) => void;
+  trafficEnabled?: boolean;
+  focusTarget?: string;
+  focusNonce?: number;
+  onAddAt?: (point: { lat: number; lng: number; address?: string }) => void;
+  onMove?: (id: string, point: { lat: number; lng: number; address?: string }) => void;
+  onLocationStatus?: (message: string) => void;
 }) {
   const route = useMemo(() => buildRoute(stores), [stores]);
   const [baiduReady, setBaiduReady] = useState(false);
   const [expandedId, setExpandedId] = useState("");
   const [detailDraft, setDetailDraft] = useState<MapStore | null>(null);
+  const [geocodeRequest, setGeocodeRequest] = useState<{ id: string; kind: "address" | "coordinates"; address?: string; lat?: number; lng?: number; nonce: number } | null>(null);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -246,6 +316,20 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
   function removeStore(event: React.MouseEvent<HTMLButtonElement>, id: string) {
     event.stopPropagation();
     if (confirm("确定删除这个门店及其地图点位吗？")) onDeleteStore?.(id);
+  }
+
+  function locateByAddress(event: React.MouseEvent<HTMLButtonElement>, store: MapStore) {
+    event.stopPropagation();
+    const address = store.address?.trim();
+    if (!address) { onLocationStatus("请先填写门店的详细地址"); return; }
+    setGeocodeRequest({ id: store.id, kind: "address", address, nonce: Date.now() });
+  }
+
+  function updateAddressByCoordinates(event: React.MouseEvent<HTMLButtonElement>, store: MapStore) {
+    event.stopPropagation();
+    const lat = Number(store.lat), lng = Number(store.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) { onLocationStatus("请先填写有效的经纬度"); return; }
+    setGeocodeRequest({ id: store.id, kind: "coordinates", lat, lng, nonce: Date.now() });
   }
 
   return (
@@ -277,6 +361,11 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
                     <label>纬度<input type="number" step="0.000001" value={draft.lat ?? ""} onChange={(event) => setDetailDraft({ ...draft, lat: Number(event.target.value) })} /></label>
                     <label>经度<input type="number" step="0.000001" value={draft.lng ?? ""} onChange={(event) => setDetailDraft({ ...draft, lng: Number(event.target.value) })} /></label>
                   </div>
+                  <div className="route-detail-actions">
+                    <button type="button" onClick={(event) => locateByAddress(event, draft)}><Search size={13} />按地址定位</button>
+                    <button type="button" onClick={(event) => updateAddressByCoordinates(event, draft)}><MapPinned size={13} />按坐标更新地址</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); onChoose(draft.id); }}><LocateFixed size={13} />查看点位</button>
+                  </div>
                   <div className="route-detail-meta"><span>经销商：{draft.dealer}</span><span>最近拜访：{draft.visit}</span></div>
                   <div className="detail-products">{draft.products.length ? draft.products.map((product) => <span key={product}>{product}</span>) : <small>暂无产品记录</small>}</div>
                   <button className="route-save" onClick={saveDetail}><Save size={14} />保存门店详情</button>
@@ -286,8 +375,8 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
           </div>
         </aside>
         <div className={`map-wrap ${baiduReady ? "baidu-active" : ""}`}>
-          <BaiduLayer stores={stores} route={route} onChoose={onChoose} onReady={setBaiduReady} editMode={editMode} addMode={addMode} onAddAt={onAddAt} onMove={onMove} />
-          <div className="map-tools"><span className={addMode ? "active" : ""}>{addMode ? "请在地图上点击新增位置" : editMode ? "拖动门店标记即可修改位置" : "真实百度地图 · 驾车路线"}</span></div>
+          <BaiduLayer stores={stores} route={route} onChoose={onChoose} onReady={setBaiduReady} editMode={editMode} addMode={addMode} trafficEnabled={trafficEnabled} focusTarget={focusTarget} focusNonce={focusNonce} geocodeRequest={geocodeRequest} onAddAt={onAddAt} onMove={onMove} onLocationStatus={onLocationStatus} />
+          <div className="map-tools"><span className={addMode ? "active" : ""}>{addMode ? "请在地图上点击新增位置，地址会自动识别" : editMode ? "拖动门店标记即可同步更新位置与地址" : "真实百度地图 · 驾车路线 · 可编辑网点"}</span></div>
           <div className="store-map"><div className="map-grid-lines" /><div className="map-title">杭州 · 经销商门店分布</div><button className="map-pin origin-pin" style={{ left: "50%", top: "50%" }} aria-label="销售驻点"><i /><span>销售驻点</span></button>{stores.map((store) => { const p = pointFor(store); const item = route.find((r) => r.store.id === store.id); const rank = route.findIndex((r) => r.store.id === store.id); const left = `${Math.max(8, Math.min(92, 50 + (p[1] - base[1]) * 260))}%`; const top = `${Math.max(10, Math.min(90, 50 - (p[0] - base[0]) * 260))}%`; return <button key={store.id} className={`map-pin ${item ? "route-pin" : "store-pin"}`} style={{ left, top }} onClick={() => onChoose(store.id)} aria-label={`选择 ${store.name}`}><i>{item ? String(rank + 1).padStart(2, "0") : ""}</i><span>{store.name}</span></button>; })}<div className="map-compass">N</div><small className="map-note">未填写坐标的门店按区域近似展示</small></div>
           <div className="map-legend"><span><i className="origin-dot" />销售驻点</span><span><i className="route-dot" />推荐拜访 · 百度驾车路线</span><span><i className="store-dot" />其他门店</span></div>
         </div>

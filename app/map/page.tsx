@@ -51,6 +51,9 @@ export default function MapPage() {
     [selected, setSelected] = useState(""),
     [editMode, setEditMode] = useState(false),
     [addMode, setAddMode] = useState(false),
+    [trafficEnabled, setTrafficEnabled] = useState(false),
+    [focusTarget, setFocusTarget] = useState(""),
+    [focusNonce, setFocusNonce] = useState(0),
     [notice, setNotice] = useState("");
   useEffect(() => {
     const raw = localStorage.getItem("landun-stores-v2");
@@ -62,24 +65,30 @@ export default function MapPage() {
   }
   function choose(id: string) {
     setSelected(id);
+    setFocusTarget(id);
+    setFocusNonce(Date.now());
   }
-  function addAt(point: { lat: number; lng: number }) {
+  function addAt(point: { lat: number; lng: number; address?: string }) {
     const id = `MAP${String(Date.now()).slice(-6)}`;
-    const store: MapStore = { id, name: "新建门店", region: "中心区", dealer: "待关联代理商", owner: "待填写", level: "A", products: [], visit: "尚未拜访", status: "待跟进", address: "", lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) };
+    const store: MapStore = { id, name: "新建门店", region: "中心区", dealer: "待关联代理商", owner: "待填写", level: "A", products: [], visit: "尚未拜访", status: "待跟进", address: point.address || "", lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) };
     persist([store, ...stores]);
     setSelected(id);
+    setFocusTarget(id);
+    setFocusNonce(Date.now());
     setAddMode(false);
     setEditMode(true);
-    setNotice("已新增地图点位，请补充门店详情");
+    setNotice(point.address ? "已新增点位并识别地址，请补充门店详情" : "已新增地图点位，请补充门店详情");
   }
-  function moveStore(id: string, point: { lat: number; lng: number }) {
-    const next = stores.map((s) => s.id === id ? { ...s, lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) } : s);
+  function moveStore(id: string, point: { lat: number; lng: number; address?: string }) {
+    const next = stores.map((s) => s.id === id ? { ...s, lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)), address: point.address || s.address } : s);
     persist(next);
   }
   function updateStore(store: MapStore) {
     const lat = Number(store.lat), lng = Number(store.lng);
     const next = stores.map((s) => s.id === store.id ? { ...store, lat: Number.isFinite(lat) ? lat : undefined, lng: Number.isFinite(lng) ? lng : undefined } : s);
     persist(next);
+    setFocusTarget(store.id);
+    setFocusNonce(Date.now());
     setNotice("门店详情和位置已保存");
   }
   function deleteStore(id: string) {
@@ -108,8 +117,8 @@ export default function MapPage() {
           <a href="/">返回工作台</a>
         </div>
       </header>
-      <div className="map-actionbar"><div><b>点位管理</b><span>{editMode ? "拖动地图标记修改坐标" : "点开左侧箭头查看和编辑门店详情"}</span></div><button className={editMode ? "active" : ""} onClick={() => { setEditMode((v) => !v); setAddMode(false); }}>{editMode ? "完成编辑" : "编辑点位"}</button><button className={addMode ? "active" : ""} onClick={() => { setAddMode((v) => !v); setEditMode(true); }}>{addMode ? "取消新增" : "＋ 地图上新增"}</button></div>
-      <StoreMap stores={stores} onChoose={choose} selectedId={selected} onUpdateStore={updateStore} onDeleteStore={deleteStore} editMode={editMode} addMode={addMode} onAddAt={addAt} onMove={moveStore} />
+      <div className="map-actionbar"><div><b>点位管理</b><span>{editMode ? "拖动标记后，位置与地址会自动同步" : "点开左侧箭头查看、编辑和定位门店详情"}</span></div><button className={trafficEnabled ? "active" : ""} onClick={() => setTrafficEnabled((value) => !value)}>{trafficEnabled ? "关闭路况" : "交通路况"}</button><button onClick={() => { setSelected(""); setFocusTarget("origin"); setFocusNonce(Date.now()); }}>回到驻点</button><button className={editMode ? "active" : ""} onClick={() => { setEditMode((v) => !v); setAddMode(false); }}>{editMode ? "完成编辑" : "编辑点位"}</button><button className={addMode ? "active" : ""} onClick={() => { setAddMode((v) => !v); setEditMode(true); }}>{addMode ? "取消新增" : "＋ 地图上新增"}</button></div>
+      <StoreMap stores={stores} onChoose={choose} selectedId={selected} onUpdateStore={updateStore} onDeleteStore={deleteStore} editMode={editMode} addMode={addMode} trafficEnabled={trafficEnabled} focusTarget={focusTarget} focusNonce={focusNonce} onAddAt={addAt} onMove={moveStore} onLocationStatus={setNotice} />
       {notice && <div className="map-toast">{notice}</div>}
     </main>
   );
