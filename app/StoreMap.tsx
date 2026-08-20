@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, LocateFixed, MapPinned, Save, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, LocateFixed, MapPinned, Mic, Save, Search, Trash2 } from "lucide-react";
+import VisitAssistant from "./VisitAssistant";
 
 declare global {
   interface Window {
@@ -18,6 +19,9 @@ export type MapStore = {
   terminalType?: string;
   manager?: string;
   createdAt?: string;
+  pendingProducts?: string[];
+  lastVisitTranscript?: string;
+  lastVisitAt?: string;
   level: string;
   products: string[];
   visit: string;
@@ -369,6 +373,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
   const [expandedId, setExpandedId] = useState("");
   const [detailDraft, setDetailDraft] = useState<MapStore | null>(null);
   const [routeVisible, setRouteVisible] = useState(false);
+  const [visitStore, setVisitStore] = useState<MapStore | null>(null);
   const [geocodeRequest, setGeocodeRequest] = useState<{ id: string; kind: "address" | "coordinates"; address?: string; lat?: number; lng?: number; nonce: number } | null>(null);
 
   useEffect(() => {
@@ -449,7 +454,8 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
                   </div>
                   <div className="route-detail-meta"><span>终端类型：{draft.terminalType || "未填写"}</span><span>客户经理：{draft.manager || draft.dealer}</span><span>{draft.createdAt ? `创建时间：${draft.createdAt}` : `最近拜访：${draft.visit}`}</span></div>
                   <div className="detail-products">{draft.products.length ? draft.products.map((product) => <span key={product}>{product}</span>) : <small>暂无产品记录</small>}</div>
-                  <button className="route-save" onClick={saveDetail}><Save size={14} />保存门店详情</button>
+                  {!!draft.pendingProducts?.length && <div className="pending-products"><small>后续补货</small>{draft.pendingProducts.map((product) => <span key={product}>{product}</span>)}</div>}
+                  <div className="route-detail-footer"><button className="route-save" onClick={saveDetail}><Save size={14} />保存门店详情</button><button className="route-visit" onClick={(event) => { event.stopPropagation(); setVisitStore(draft); }}><Mic size={14} />智能拜访记录</button></div>
                 </div>}
               </article>;
             })}
@@ -469,6 +475,7 @@ export default function StoreMap({ stores, onChoose, selectedId = "", onUpdateSt
           <div className="map-legend"><span><i className="origin-dot" />销售驻点</span><span><i className="route-dot" />推荐拜访 · 百度驾车路线</span><span><i className="store-dot" />其他门店</span></div>
         </div>
       </div>
+      {visitStore && <VisitAssistant store={visitStore} onClose={() => setVisitStore(null)} onSave={(store) => { onUpdateStore?.(store); setDetailDraft(store); onLocationStatus("已同步本次拜访记录与产品建议"); }} />}
     </section>
   );
 }
