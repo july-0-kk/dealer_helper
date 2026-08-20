@@ -1,30 +1,12 @@
 "use client";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { buildRoute } from "./StoreMap";
+import { buildRoute, MapStore } from "./StoreMap";
 import { createRealStores } from "./realStores";
+import VisitAssistant from "./VisitAssistant";
 
-type Store = {
-  id: string;
-  name: string;
-  region: string;
-  dealer: string;
-  owner: string;
-  level: string;
-  products: string[];
-  visit: string;
-  status: "正常" | "待跟进";
-  address?: string;
-  lat?: number;
-  lng?: number;
-};
-type Visit = {
-  id: string;
-  storeName: string;
-  date: string;
-  result: string;
-  note: string;
-};
+type Store = MapStore;
+type Visit = { id: string; storeName: string; date: string; result: string; note: string };
 const seed: Store[] = [
   {
     id: "MD001",
@@ -76,22 +58,20 @@ export default function Home() {
   const [stores, setStores] = useState<Store[]>(createRealStores()),
     [visits, setVisits] = useState<Visit[]>([]),
     [activeId, setActiveId] = useState(""),
-    [view, setView] = useState<"stores" | "visits">("stores"),
+    [view] = useState<"stores" | "visits">("stores"),
     [q, setQ] = useState(""),
     [editing, setEditing] = useState<Store | null>(null),
+    [visitStore, setVisitStore] = useState<Store | null>(null),
     [toast, setToast] = useState("");
   useEffect(() => {
-    const s = localStorage.getItem("landun-stores-v3"),
-      v = localStorage.getItem("landun-visits-v3");
+    const s = localStorage.getItem("landun-stores-v3"), v = localStorage.getItem("landun-visits-v3");
     if (s) setStores(JSON.parse(s));
     if (v) setVisits(JSON.parse(v));
   }, []);
   useEffect(() => {
     localStorage.setItem("landun-stores-v3", JSON.stringify(stores));
   }, [stores]);
-  useEffect(() => {
-    localStorage.setItem("landun-visits-v3", JSON.stringify(visits));
-  }, [visits]);
+  useEffect(() => { localStorage.setItem("landun-visits-v3", JSON.stringify(visits)); }, [visits]);
   const filtered = useMemo(
     () =>
       stores.filter((s) =>
@@ -147,7 +127,6 @@ export default function Home() {
         if (!next.length) throw 0;
         setStores(next);
         setActiveId(next[0].id);
-        setView("stores");
         say(`已导入 ${next.length} 家门店`);
       } catch {
         say("导入失败，请确认含有“出货明细”页");
@@ -203,18 +182,7 @@ export default function Home() {
           </div>
         </div>
         <nav>
-          <button
-            className={view === "stores" ? "active" : ""}
-            onClick={() => setView("stores")}
-          >
-            门店档案
-          </button>
-          <button
-            className={view === "visits" ? "active" : ""}
-            onClick={() => setView("visits")}
-          >
-            今日推荐拜访 <em>{recs.filter((x) => x.score >= 35).length}</em>
-          </button>
+          <button className="active">门店档案</button>
           <a href="/map">门店地图</a>
         </nav>
         <div className="top-actions">
@@ -355,9 +323,7 @@ export default function Home() {
                     {active.id}　·　{active.region}　·　{active.dealer}
                   </p>
                 </div>
-                <button onClick={() => setEditing({ ...active })}>
-                  编辑资料
-                </button>
+                <div className="profile-head-actions"><button className="ai-visit-v3" onClick={() => setVisitStore(active)}>智能拜访分析</button><button onClick={() => setEditing({ ...active })}>编辑资料</button></div>
               </div>
               <div className="profile-grid">
                 <label>
@@ -410,6 +376,10 @@ export default function Home() {
                   )}
                 </div>
               </div>
+              <div className="section-v3 ai-board-v3">
+                <div className="ai-board-heading"><div><small>AI 产品经营看板</small><h2>产品动作与跟进预期</h2></div><button onClick={() => setVisitStore(active)}>发起 AI 分析</button></div>
+                {active.productInsights?.length ? <><div className="ai-board-stats"><span className="increase">建议增加 {active.productInsights.filter((item) => item.action === "增加").length}</span><span className="replenish">计划补货 {active.productInsights.filter((item) => item.action === "补货").length}</span><span className="reduce">建议减少 {active.productInsights.filter((item) => item.action === "减少").length}</span></div><div className="ai-board-grid">{active.productInsights.map((item) => <article key={`${item.product}-${item.updatedAt}`} className={item.action}><header><b>{item.product}</b><span>{item.action === "补货" ? "补货计划" : item.action === "增加" ? "建议增加" : "建议减少"}</span></header><p>{item.signal} · {item.reason}</p><small>下一步：{item.expectation}</small></article>)}</div></> : <div className="ai-board-empty"><b>还没有产品经营结论</b><span>从一次拜访谈话中识别产品的增减、补货和销售预期。</span><button onClick={() => setVisitStore(active)}>开始智能拜访</button></div>}
+              </div>
               <div className="section-v3 next-plan">
                 <h2>下次拜访计划</h2>
                 <div>
@@ -438,9 +408,7 @@ export default function Home() {
                     {active.status}
                   </b>
                 </span>
-                <button className="record-v3" onClick={() => record(active)}>
-                  ✓ 记录本次拜访
-                </button>
+                <button className="record-v3" onClick={() => setVisitStore(active)}>智能拜访并更新产品</button>
               </div>
             </article>
           )}
@@ -533,6 +501,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      {visitStore && <VisitAssistant store={visitStore} onClose={() => setVisitStore(null)} onSave={(updated) => { setStores((value) => value.map((store) => store.id === updated.id ? updated : store)); setActiveId(updated.id); say("AI 产品经营结论已同步到门店档案"); }} />}
       {toast && <div className="toast-v3">✓　{toast}</div>}
     </main>
   );
