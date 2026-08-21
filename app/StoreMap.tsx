@@ -50,7 +50,6 @@ export type RouteItem = {
 };
 
 export const base: [number, number] = [23.129, 113.264];
-const BAIDU_MAP_AK = "l5FhlKxJus8GU5Vjv7zhHfkzOAFIeIqw";
 const regionCenters: Record<string, [number, number]> = {
   东区: [30.275, 120.235],
   南区: [30.184, 120.152],
@@ -158,11 +157,27 @@ function BaiduLayer({
   const host = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const chooseRef = useRef(onChoose), addRef = useRef(onAddAt), moveRef = useRef(onMove), statusRef = useRef(onLocationStatus), addModeRef = useRef(addMode);
-  const [ak, setAk] = useState(BAIDU_MAP_AK);
+  const [ak, setAk] = useState("");
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   useEffect(() => { chooseRef.current = onChoose; addRef.current = onAddAt; moveRef.current = onMove; statusRef.current = onLocationStatus; addModeRef.current = addMode; }, [onChoose, onAddAt, onMove, onLocationStatus, addMode]);
-  useEffect(() => { localStorage.setItem("landun-baidu-map-ak", BAIDU_MAP_AK); setAk(BAIDU_MAP_AK); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/map-config", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { ak: "" })
+      .then((config) => {
+        if (cancelled) return;
+        const value = typeof config?.ak === "string" ? config.ak.trim() : "";
+        if (value) {
+          localStorage.setItem("landun-baidu-map-ak", value);
+          setAk(value);
+          return;
+        }
+        setAk(localStorage.getItem("landun-baidu-map-ak") || "");
+      })
+      .catch(() => { if (!cancelled) setAk(localStorage.getItem("landun-baidu-map-ak") || ""); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!ak || !host.current) { onReady(false); return; }

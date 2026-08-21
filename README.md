@@ -1,98 +1,68 @@
-# vinext-starter
+# 澜盾防水 · 经销商工作台
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+面向防水建材渠道销售的门店经营工具。它把代理商的出货信息、门店铺货情况、销售拜访和地图路线放到同一套工作流中，帮助销售人员回答一个最关键的问题：**这家门店现在卖什么、应该增加什么、又该优先拜访谁。**
 
-## Prerequisites
+## 它改善了哪些一线流程
 
-- Node.js `>=22.13.0`
+### 1. 从“看拜访照片”到“看清门店卖什么”
 
-## Quick Start
+以往销售人员能看到门头、老板和陈列照片，却不容易快速确认某家门店到底铺了哪些防水产品。本项目支持导入代理商出货表，将出货记录整理到门店档案，并把在售产品、待补货产品和产品覆盖数量集中展示。
+
+### 2. 让拜访记录直接变成产品动作
+
+销售人员可在门店中录音或补充谈话文字。系统会用本机模型整理出产品层面的经营结论：
+
+- 哪些产品建议增加铺货或陈列；
+- 哪些产品正在热销、需要补货；
+- 哪些产品动销放缓、建议减少；
+- 下一次拜访要确认什么。
+
+确认后，这些结论会同步到同一门店的“AI 产品经营看板”。门店档案和地图详情共用同一份数据，避免重复记录。
+
+### 3. 从“凭经验跑店”到“按优先级跑店”
+
+地图页综合门店拜访状态、产品覆盖、重点等级和与销售驻点的距离，生成一轮最多 10 家门店的推荐拜访计划；需要时还可在百度地图底图上展示路线，减少来回折返。
+
+### 4. 让门店位置成为可维护的数据
+
+业务人员可以在地图上选择、拖动、新增或编辑门店点位；系统支持按地址定位和按坐标回填地址。门店列表、详情和地图点位相互联动，方便校准实际网点位置。
+
+## 核心功能
+
+- 出货表导入与门店产品归集
+- 门店目录、搜索、详情编辑与产品覆盖查看
+- 百度地图门店点位、拖动修正、地址与坐标互转
+- 推荐拜访路线与地图展示
+- 浏览器录音、谈话转写和本机 AI 产品分析
+- AI 产品经营看板：增加、补货、减少、销售信号和跟进预期
+
+## 使用流程
+
+1. 导入代理商的出货明细，建立或更新门店和产品记录。
+2. 在门店档案或门店地图中选择一家门店。
+3. 发起智能拜访，录音或补充关键谈话。
+4. 确认 AI 给出的产品动作，系统同步更新门店的在售、补货和经营预期。
+5. 打开门店地图，按推荐顺序安排当天走访。
+
+## 本地运行
 
 ```bash
 npm install
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+## 百度地图 AK 配置
 
-## Included Shape
+浏览器端地图 AK 不会提交到仓库。请在本地 `.env` 或部署环境设置：
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+BAIDU_MAP_AK=你的浏览器端AK
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+在百度地图开放平台为该 AK 配置 Referer 白名单，仅保留：
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+```text
+landun-dealer-workbench.july-0.chatgpt.site*
+```
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+如需本地调试，可额外添加本地开发地址；不要使用无白名单限制的 AK。
